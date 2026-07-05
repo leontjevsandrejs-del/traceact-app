@@ -1,0 +1,134 @@
+{
+  "app": {
+    "page_title": "TraceAct — EU AI Act Compliance Workspace",
+    "header_title": "EU AI Act Compliance Auditor",
+    "header_tagline": "Automated multi-agent regulatory assessment · Powered by Gemini",
+    "operator_line": "A TraceAct product · Operated by PV Services SIA (Latvia)"
+  },
+  "workspace": {
+    "tabs": ["System Triage", "Evidence Vault", "Conformity Assessment"],
+    "wizard": {
+      "label": "Smart Compliance Wizard",
+      "title": "Enterprise AI System Intake",
+      "sub": "A structured, conditional assessment flow — each answer sharpens the regulatory classification forwarded to the audit pipeline.",
+      "step_labels": ["Sector Profile", "Data Footprint", "Deployment & Oversight", "Evidence & Review"],
+      "step1": {
+        "label": "Step 01 — Company &amp; Industry Sector Profile",
+        "question": "Which industry sector does this AI system operate in?",
+        "hint": "Sector selection drives the Annex III high-risk mapping. Employment, credit, infrastructure, education, healthcare, and law-enforcement systems carry elevated statutory obligations.",
+        "company_label": "Company / organisation name (appears on the audit report)",
+        "company_placeholder": "e.g. Acme Analytics GmbH",
+        "role_label": "Your organisation's role in the AI value chain",
+        "next_button": "Continue to Data Footprint →"
+      },
+      "step2": {
+        "label": "Step 02 — Algorithmic Data &amp; Biometric Footprint",
+        "q_biometric": "Does the system process biometric data for identification or emotion recognition?",
+        "hint_biometric": "Emotion recognition in workplaces or education is a prohibited practice under Article 5(1)(f). Biometric identification triggers Annex III Section 1.",
+        "q_policing": "Does it use predictive policing or profiling datasets?",
+        "hint_policing": "Predictive policing based on profiling is prohibited under Article 5(1)(d). Behavioural profiling elevates Annex III exposure.",
+        "q_data_source": "Where is the training data sourced from?",
+        "hint_data_source": "Public scraping raises Article 10 data-governance and GDPR lawful-basis issues; unknown vendor provenance shifts documentation duties under Article 25.",
+        "next_button": "Continue to Deployment & Oversight →"
+      },
+      "step3": {
+        "label": "Step 03 — System Deployment &amp; Human Oversight",
+        "q_audience": "Who does the AI system face operationally?",
+        "hint_audience": "Consumer-facing systems trigger Article 50 transparency duties; public-infrastructure deployment elevates Annex III Section 2 exposure.",
+        "q_oversight": "What human oversight guardrails are active?",
+        "hint_oversight": "Article 14 requires effective human oversight for high-risk systems — including the ability to override or interrupt the system at any time.",
+        "next_button": "Continue to Evidence & Review →"
+      },
+      "step4": {
+        "label": "Step 04 — Evidence Upload &amp; Intake Review",
+        "sub": "Attach supporting documentation, confirm your profile, then proceed to the Conformity Assessment tab.",
+        "upload_label": "Drop a file (TXT or PDF)",
+        "upload_help": "Vendor ToS, model cards, README files, or architecture overviews.",
+        "upload_success": "Document cached inside secure enterprise vault.",
+        "upload_error": "Could not extract text from the uploaded file.",
+        "paste_label": "Or paste a product description / notes here",
+        "paste_placeholder": "e.g. 'We use an automated CV screening tool purchased from VendorX. It ranks candidates 1–10 and our HR manager reviews the top 3 before making a hiring decision.'",
+        "summary_label": "Intake Profile Summary",
+        "preview_metric": "Preliminary Risk Tier",
+        "confirm_button": "✓ Confirm Intake — Ready for Audit",
+        "confirm_success": "Intake locked. Open the **Conformity Assessment** tab to run the audit.",
+        "back_button": "← Back"
+      }
+    },
+    "evidence": {
+      "label": "Evidence Vault",
+      "title": "Supplementary Document Archive",
+      "sub": "Files uploaded in Step 1 are already queued. Use this vault to attach additional supporting documents.",
+      "upload_label": "Upload additional technical documentation, model cards, or architecture blueprints (TXT / PDF)",
+      "upload_success": "Additional document successfully cached inside secure enterprise vault."
+    },
+    "assessment": {
+      "label": "Conformity Assessment",
+      "title": "Generate Legal Compliance Audit Report",
+      "sub": "Initiates the three-agent analysis pipeline — Ingestion Analyst → Regulatory Cross-Examiner → Executive Draftsman.",
+      "run_button": "Run Compliance Audit",
+      "missing_key_error": "Please set GEMINI_API_KEY in your .env file before running an audit.",
+      "missing_intake_error": "Please complete the Smart Compliance Wizard in the **System Triage** tab before running an audit.",
+      "spinner_a": "🕵️‍♂️ Agent A [Ingestion Analyst] is dissecting system blueprints...",
+      "spinner_b": "⚖️ Agent B [Regulatory Cross-Examiner] is auditing text against official EU Annexes...",
+      "spinner_c": "📄 Agent C [Auditor Draftsman] is compiling formal regulatory certification files..."
+    },
+    "command_center": {
+      "label": "Compliance Command Center",
+      "title": "Post-Assessment Governance Workspace",
+      "sub": "Your audit is complete — manage the report, obligations register, and regulatory deadlines below.",
+      "tabs": ["Overview", "Obligations Sheet", "Regulatory Calendar"],
+      "save_button": "💾 Save Official Report directly to Downloads Folder",
+      "obligations_label": "Interactive Obligations Register",
+      "obligations_sub": "Track each statutory duty to closure. Status choices and notes save instantly to your session workspace.",
+      "calendar_label": "Regulatory Deadline Timeline",
+      "calendar_sub": "Deadlines are computed from your assessment date and intake profile — earliest first."
+    }
+  },
+  "risk_tiers": {
+    "minimal": {
+      "name": "Minimal Risk",
+      "citation": "General Provisions",
+      "summary": "Most business AI falls here: internal optimization tools, spam filters, and retail marketing content generated with active human editorial control. Under Article 50(4), AI-assisted text that a human reviews, edits, and approves before publication qualifies for the statutory transparency exemption — no mandatory AI-labeling applies.",
+      "pass_rules": "Regulatory pass rules: maintain an AI inventory register and voluntary codes of conduct. Human editorial control over generated content satisfies the Article 50(4) exemption threshold."
+    },
+    "limited": {
+      "name": "Limited Risk (Specific Transparency)",
+      "citation": "Article 50",
+      "summary": "Raw, public-facing synthetic content — chatbots talking to consumers, AI-generated media published without editorial review, deepfakes — triggers Article 50 transparency mandates.",
+      "pass_rules": "Transparency labeling mandates: users must be told they are interacting with AI; synthetic content published to inform the public on matters of public interest must be labeled as AI-generated unless it passed human editorial control."
+    },
+    "high": {
+      "name": "High Risk (Annex III)",
+      "citation": "Annex III",
+      "summary": "Systems operating in employment and hiring, credit scoring, critical infrastructure, education, medical devices, and law enforcement inherit the Act's heaviest regime.",
+      "pass_rules": "Compliance burdens: risk-management systems (Article 9), data governance (Article 10), technical documentation, automatic event logging (Article 12), effective human oversight (Article 14), fundamental rights impact assessments (Article 27), conformity assessment before market placement, and EU database registration."
+    },
+    "prohibited": {
+      "name": "Prohibited Practices",
+      "citation": "Article 5",
+      "summary": "Practices such as predictive policing based on profiling and workplace emotion recognition cannot be made compliant and must be decommissioned.",
+      "pass_rules": "No pass path exists — Article 5 practices are banned outright with penalties up to €35 million or 7% of global annual turnover."
+    }
+  },
+  "legal": {
+    "hub": {
+      "label": "Legal & Imprint",
+      "title": "Corporate Legal Hub",
+      "sub": "Mandatory disclosures, data-processing terms, and the corporate imprint for the TraceAct compliance workspace."
+    },
+    "imprint": {
+      "heading": "Imprint (Impressum)",
+      "body": "**Operating entity:** PV Services SIA\n\n**Legal form:** Sabiedrība ar ierobežotu atbildību (Private Limited Company), Republic of Latvia\n\n**Registration number:** [REGISTRY NUMBER]\n\n**VAT ID:** [VAT NUMBER]\n\n**Registered office:** [STREET ADDRESS], [CITY], [POSTAL CODE], Latvia\n\n**Contact:** compliance@traceact.eu\n\n**Represented by:** [MANAGING DIRECTOR NAME]\n\n**Commercial register:** Register of Enterprises of the Republic of Latvia (Latvijas Republikas Uzņēmumu reģistrs)\n\nTraceAct® is a software product of PV Services SIA. All content in this workspace is provided for general business information purposes."
+    },
+    "gdpr": {
+      "heading": "GDPR Article 28 — Data Processing Agreement Summary",
+      "body": "PV Services SIA acts as a **processor** within the meaning of Article 28 of Regulation (EU) 2016/679 (GDPR) for personal data submitted through this workspace, and as a **controller** for account and billing records.\n\n**Processing scope:** intake questionnaire answers, uploaded documentation excerpts, and generated assessment reports are processed solely to deliver the contracted conformity-assessment service.\n\n**Sub-processors:** generative model inference is provided by Google (Gemini API) under the Google Cloud Data Processing Addendum. No personal data is used to train foundation models.\n\n**Retention:** session data is held in volatile application memory for the duration of the workspace session; generated reports are written only to storage locations the user explicitly selects.\n\n**Data subject rights:** requests under Articles 15–22 GDPR can be addressed to compliance@traceact.eu. Supervisory authority: Datu valsts inspekcija (Data State Inspectorate), Republic of Latvia.\n\n**Security measures (Art. 32):** transport encryption for all model API calls, least-privilege API credentials, and no server-side persistence of uploaded evidence."
+    },
+    "disclaimer": {
+      "heading": "Scope-of-Service Disclaimer",
+      "body": "TraceAct is an automated **administrative readiness indicator** operated by PV Services SIA (Latvia). Reports generated by this platform are produced by software-based analysis and are intended to support — not replace — your organisation's internal compliance review under Regulation (EU) 2024/1689 (the EU Artificial Intelligence Act).\n\nNothing in this workspace or within any generated report constitutes formal legal advice, licensed legal counsel, or a regulatory conformity certificate within the meaning of the EU AI Act or the laws of any EU Member State. No attorney–client relationship is created through the use of this service.\n\nTo the maximum extent permitted by applicable law, PV Services SIA accepts no liability for commercial or regulatory decisions taken in reliance on automated report outputs.",
+      "pdf_line": "Legal disclaimer: This report is an automated readiness indicator only and does not constitute official licensed legal counsel."
+    }
+  }
+}
