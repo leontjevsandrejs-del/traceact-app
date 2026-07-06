@@ -37,7 +37,36 @@ _STATUS_COLORS = {
     "PRESENT": (6, 95, 70),
     "SHALLOW": (146, 64, 14),
     "MISSING": (153, 27, 27),
+    "EXEMPT": _C_SLATE,   # charcoal — not a deficiency alert
 }
+
+_MINIMAL_RISK_EXEMPT_MITIGATION = (
+    "No mandatory technical dossier required under Article 11 for Minimal Risk "
+    "systems. Voluntary alignment with Article 95 (Codes of Conduct) is "
+    "recommended for institutional-grade AI governance."
+)
+
+
+def _is_minimal_risk(classification) -> bool:
+    if classification is None:
+        return False
+    return (
+        getattr(classification, "tier_code", None) == "minimal"
+        or getattr(classification, "tier", "") == "MINIMAL RISK"
+    )
+
+
+def annex_iv_row_display(finding, classification=None, had_documentation: bool = False):
+    """
+    Resolve the Tier 3 table status and mitigation text for one Annex IV row.
+
+    Minimal-risk systems are not subject to Article 11 / Annex IV dossier
+    duties, so every component is marked EXEMPT regardless of upload state.
+    """
+    if _is_minimal_risk(classification):
+        return "EXEMPT", _MINIMAL_RISK_EXEMPT_MITIGATION
+    status = "MISSING" if not had_documentation else finding.status
+    return status, finding.mitigation
 
 
 class _AuditPDF(FPDF):
@@ -223,20 +252,31 @@ def _render_tier2_pathway(pdf, classification):
                        _sanitise(classification.exemption.get("reason", "")))
 
 
-def _render_tier3_gap_table(pdf, annex_iv_findings, had_documentation):
+def _render_tier3_gap_table(pdf, annex_iv_findings, had_documentation,
+                            classification=None):
     """Tier 3 — Annex IV gap-analysis table (deterministic scan results)."""
     pdf.set_font("Helvetica", "", 9.5)
     pdf.set_text_color(*_C_CHAR)
-    intro = (
-        "Deterministic reconciliation of the uploaded technical documentation "
-        "against every mandatory Annex IV component. MISSING items are "
-        "Critical Regulatory Deficiencies; SHALLOW items were mentioned but "
-        "lack audit-grade technical depth."
-        if had_documentation else
-        "No technical documentation was uploaded. Every Annex IV component "
-        "defaults to MISSING (Critical Regulatory Deficiency) until evidence "
-        "is provided."
-    )
+    if _is_minimal_risk(classification):
+        intro = (
+            "Annex IV technical-documentation obligations under Article 11 apply "
+            "only to high-risk AI systems. This system is classified MINIMAL "
+            "RISK; every component below is marked EXEMPT. Voluntary alignment "
+            "with Article 95 (Codes of Conduct) remains recommended."
+        )
+    elif had_documentation:
+        intro = (
+            "Deterministic reconciliation of the uploaded technical documentation "
+            "against every mandatory Annex IV component. MISSING items are "
+            "Critical Regulatory Deficiencies; SHALLOW items were mentioned but "
+            "lack audit-grade technical depth."
+        )
+    else:
+        intro = (
+            "No technical documentation was uploaded. Every Annex IV component "
+            "defaults to MISSING (Critical Regulatory Deficiency) until evidence "
+            "is provided."
+        )
     pdf.multi_cell(_usable_width(pdf), 5.5, _sanitise(intro))
     pdf.ln(2)
 
@@ -255,12 +295,13 @@ def _render_tier3_gap_table(pdf, annex_iv_findings, had_documentation):
 
     _header_row()
     for f in annex_iv_findings:
-        status = "MISSING" if not had_documentation else f.status
+        status, mitigation = annex_iv_row_display(
+            f, classification, had_documentation)
         # Measure row height across the wrapped columns
         pdf.set_font("Helvetica", "", 7.6)
         comp_lines = pdf.multi_cell(col_w["comp"], 4.4, _sanitise(f.title),
                                     split_only=True)
-        fix_lines = pdf.multi_cell(col_w["fix"], 4.4, _sanitise(f.mitigation),
+        fix_lines = pdf.multi_cell(col_w["fix"], 4.4, _sanitise(mitigation),
                                    split_only=True)
         row_h = max(len(comp_lines), len(fix_lines), 2) * 4.4
 
@@ -286,7 +327,7 @@ def _render_tier3_gap_table(pdf, annex_iv_findings, had_documentation):
         pdf.set_font("Helvetica", "", 7.6)
         pdf.set_text_color(*_C_CHAR)
         pdf.set_xy(x0 + col_w["comp"] + col_w["cite"] + col_w["status"], y0)
-        pdf.multi_cell(col_w["fix"], 4.4, _sanitise(f.mitigation), border=1)
+        pdf.multi_cell(col_w["fix"], 4.4, _sanitise(mitigation), border=1)
 
         pdf.set_y(y0 + row_h)
     pdf.ln(2)
@@ -373,7 +414,8 @@ def generate_pdf_report(final_report_text,
     # ── Tier 3 ────────────────────────────────────────────────────────────────
     if annex_iv_findings is not None:
         _tier_heading(pdf, "Tier 3 - Annex IV Gap Analysis")
-        _render_tier3_gap_table(pdf, annex_iv_findings, had_documentation)
+        _render_tier3_gap_table(
+            pdf, annex_iv_findings, had_documentation, classification)
 
     # ── Clarification Request Matrix ──────────────────────────────────────────
     _render_clarification_matrix(pdf, clarification_matrix or [])

@@ -222,6 +222,40 @@ def test_annex_iv():
           all(m.get("citation") for m in matrix))
 
 
+def test_minimal_risk_gap_rows():
+    print("\n[2b] Minimal-risk Annex IV gap table rows")
+    from utils.risk_engine import classify_risk
+    from utils.annex_iv import scan_documentation
+    from utils.report_gen import annex_iv_row_display, _MINIMAL_RISK_EXEMPT_MITIGATION
+
+    classification = classify_risk(base_intake())
+    check("Fixture intake is MINIMAL RISK",
+          classification.tier_code == "minimal",
+          f"got {classification.tier_code}")
+
+    findings = scan_documentation("")  # all MISSING without minimal override
+    statuses = {
+        annex_iv_row_display(f, classification, had_documentation=False)[0]
+        for f in findings
+    }
+    mitigations = {
+        annex_iv_row_display(f, classification, had_documentation=False)[1]
+        for f in findings
+    }
+    check("Minimal risk: all 9 rows EXEMPT (no false MISSING)",
+          statuses == {"EXEMPT"} and len(findings) == 9,
+          str(statuses))
+    check("Minimal risk: exempt mitigation text applied",
+          mitigations == {_MINIMAL_RISK_EXEMPT_MITIGATION})
+
+    # High-risk path unchanged
+    hr = classify_risk(base_intake(industry="Employment & HR (hiring, evaluation)"))
+    st, mt = annex_iv_row_display(findings[0], hr, had_documentation=False)
+    check("High-risk without docs still MISSING",
+          st == "MISSING" and mt == findings[0].mitigation,
+          f"got {st}")
+
+
 def test_pdf_generation():
     print("\n[3] Four-tier PDF generation")
     from utils.risk_engine import classify_risk
@@ -333,6 +367,7 @@ if __name__ == "__main__":
     print("=== TraceAct pipeline validation harness ===")
     test_risk_engine()
     test_annex_iv()
+    test_minimal_risk_gap_rows()
     test_pdf_generation()
     test_content_and_imports()
     print(f"\n=== RESULT: {PASSED} passed, {FAILED} failed ===")
