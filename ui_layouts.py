@@ -12,7 +12,6 @@ Exports:
 """
 
 import os
-import re
 import time
 import random
 
@@ -21,18 +20,48 @@ import streamlit as st
 from datetime import date, timedelta
 from google import genai
 from google.genai.errors import APIError, ClientError
-from fpdf import FPDF
 import pypdf
+
+from utils.risk_engine import (
+    classify_risk,
+    INDUSTRY_OPTIONS,
+    BIOMETRIC_OPTIONS,
+    POLICING_OPTIONS,
+    SOCIAL_SCORING_OPTIONS,
+    DATA_SOURCE_OPTIONS,
+    AUDIENCE_OPTIONS,
+    OVERSIGHT_OPTIONS,
+    ROLE_OPTIONS,
+    ANNEX_I_OPTIONS,
+    FUNCTION_OPTIONS,
+)
+from utils.annex_iv import (
+    scan_documentation,
+    findings_summary_block,
+    build_clarification_matrix,
+    clarification_block,
+)
+from utils.knowledge import load_legal_knowledge_base, knowledge_base_inventory
+from utils.report_gen import generate_pdf_report, save_report_to_downloads
 
 PRIMARY_MODEL = "gemini-2.5-flash"
 FALLBACK_MODEL = "gemini-2.0-flash"
 
 ARTICLE_50_GUARDRAIL = """---
-⚠️ CRITICAL REGULATORY GUARDRAIL – ARTICLE 50 TEXT GENERATION EXEMPTION:
-When evaluating an AI system that generates text content (such as marketing copy, social media posts, or articles) under Article 50:
-1. You must explicitly distinguish between 'Providers' (who build the model and must watermark synthetic outputs under Article 50(2)) and 'Deployers' (who use the model to generate public-facing text under Article 50(4)).
-2. Under Article 50(4), a Deployer is ONLY required to label text as AI-generated if it is published to inform the public on matters of public interest (e.g., news, political announcements) AND it has not undergone human review or editorial control.
-3. EXEMPTION CRITERIA: If the user profile explicitly states that a human reviews, edits, or approves the text outputs before public release, or if the content is standard commercial retail marketing, the system qualifies for the statutory exemption. In this scenario, you MUST mark the Article 50 compliance status as a 'PASS' and state that human editorial control satisfies the regulatory threshold. Never issue a 'FAIL' or a high-severity breach if a human-in-the-loop workflow is active.
+ARTICLE 50 TEXT-GENERATION ANALYSIS RULE:
+When evaluating an AI system that generates text content under Article 50:
+1. Distinguish between 'Providers' (who build the model and carry the machine-readable marking duty of Article 50(2)) and 'Deployers' (who use the model to generate text, governed by Article 50(4)).
+2. Under Article 50(4), second subparagraph, a Deployer's duty to disclose that text is AI-generated applies to text published to inform the public on matters of public interest, and that duty does not apply where the AI-generated content has undergone human review or editorial control with a natural or legal person holding editorial responsibility.
+3. Apply the exemption ONLY when the intake explicitly evidences the human editorial-control workflow; state the evidence you relied on and cite Article 50(4) in your finding. If the evidence is absent or ambiguous, do not assume the exemption — route the question to the Clarification Request Matrix instead.
+---"""
+
+CITATION_PROTOCOL = """---
+ZERO-MISTAKE CITATION PROTOCOL (binding on every statement you output):
+1. Every compliance classification, legal assertion, or breach finding MUST carry an explicit statutory anchor: Article, paragraph, Recital, or Annex point of Regulation (EU) 2024/1689 — e.g. [Article 10(3)], [Annex III, point 4], [Recital 61].
+2. Where an Annex document has been supplied in the OFFICIAL REGULATORY REFERENCE DOCUMENTS block, cite the source document name as well: [source: Annex IV - Technical Documentation].
+3. If you cannot anchor a statement to a specific provision, you MUST NOT make the statement. Write instead: "INSUFFICIENT EVIDENCE — routed to Clarification Request Matrix."
+4. Never invent Article numbers, paragraph numbers, or Annex points. Never paraphrase a provision as a quotation. Never assert that documentation contains something the ANNEX IV DOCUMENTATION SCAN marks as MISSING or SHALLOW.
+5. The deterministic classification tier and decision pathway supplied to you are authoritative. You must not contradict, upgrade, or downgrade the tier. Your role is analysis within the tier, not re-classification.
 ---"""
 
 
@@ -165,302 +194,9 @@ def call_gemini_with_retry(client, prompt, model_name=None):
     return None
 
 
-def load_legal_knowledge_base():
-    kb_path = os.path.join(os.path.dirname(__file__), "knowledge_base")
-    if not os.path.isdir(kb_path):
-        return ""
-    combined_text = []
-    for filename in os.listdir(kb_path):
-        if filename.endswith(".txt"):
-            filepath = os.path.join(kb_path, filename)
-            with open(filepath, "r", encoding="utf-8") as f:
-                combined_text.append(f.read())
-    return "\n\n".join(combined_text)
-
-
 # ══════════════════════════════════════════════════════════════════════════════
-# PDF document builder (branded audit pack)
+# Sector-specific mitigation mandates (kept in sync with utils.risk_engine)
 # ══════════════════════════════════════════════════════════════════════════════
-
-_C_SLATE   = (26,  46,  64)   # Deep Slate Blue  — primary headers
-_C_CHAR    = (60,  60,  60)   # Soft Charcoal    — body text
-_C_GRAY_BG = (245, 246, 248)  # Muted Light Gray — metric summary fills
-_C_ACCENT  = (92, 130, 165)   # Steel accent     — rule lines
-_C_WHITE   = (255, 255, 255)
-
-
-class _AuditPDF(FPDF):
-    """FPDF subclass that stamps a branded header and page-number footer."""
-
-    def header(self):
-        self.set_draw_color(*_C_ACCENT)
-        self.set_line_width(0.4)
-        self.line(20, 14, 190, 14)
-        self.set_font("Helvetica", "I", 7.5)
-        self.set_text_color(*_C_ACCENT)
-        self.set_y(9)
-        self.cell(0, 5,
-                  "EU AI Act Compliance Assessment Hub  |  Confidential Audit File",
-                  align="C")
-        self.ln(8)
-
-    def footer(self):
-        self.set_y(-13)
-        self.set_draw_color(*_C_ACCENT)
-        self.set_line_width(0.3)
-        self.line(20, self.get_y(), 190, self.get_y())
-        self.set_font("Helvetica", "I", 7.5)
-        self.set_text_color(*_C_ACCENT)
-        self.cell(0, 6, f"Page {self.page_no()}", align="C")
-
-
-def _sanitise(text: str) -> str:
-    """Strip non-latin-1 characters and common markdown clutter."""
-    text = text.replace("\u26a0\ufe0f ", "").replace("\u26a0\ufe0f", "")  # ⚠️ prefix
-    text = text.replace("\u26a0", "").replace("\ufe0f", "")               # stray parts
-    text = text.replace("\u2019", "'").replace("\u2018", "'")
-    text = text.replace("\u201c", '"').replace("\u201d", '"')
-    text = text.replace("\u2014", "--").replace("\u2013", "-")
-    # Drop any remaining glyphs Helvetica/latin-1 cannot render
-    # (errors="replace" would turn each of them into a "?").
-    return text.encode("latin-1", errors="ignore").decode("latin-1")
-
-
-def _render_body(pdf: _AuditPDF, insights_text: str) -> None:
-    """Parse the agent output line-by-line and render with styling."""
-    page_h = pdf.h - pdf.b_margin
-
-    def _w():
-        """Usable line width, always anchored to the left margin."""
-        pdf.set_x(pdf.l_margin)
-        return pdf.w - pdf.l_margin - pdf.r_margin
-
-    for raw_line in insights_text.splitlines():
-        line = raw_line.rstrip()
-
-        # ── H1 / H2 section headers ──────────────────────────────────────────
-        if line.startswith("## ") or line.startswith("# "):
-            label = line.lstrip("#").strip()
-            if pdf.get_y() > page_h - 20:
-                pdf.add_page()
-            pdf.ln(4)
-            pdf.set_font("Helvetica", "B", 13)
-            pdf.set_text_color(*_C_SLATE)
-            pdf.set_draw_color(*_C_ACCENT)
-            pdf.set_line_width(0.35)
-            pdf.multi_cell(_w(), 7, _sanitise(label))
-            pdf.set_x(pdf.l_margin)
-            pdf.line(pdf.l_margin, pdf.get_y(), pdf.w - pdf.r_margin, pdf.get_y())
-            pdf.ln(3)
-
-        # ── H3 sub-headers ───────────────────────────────────────────────────
-        elif line.startswith("### "):
-            label = line[4:].strip()
-            if pdf.get_y() > page_h - 14:
-                pdf.add_page()
-            pdf.ln(2)
-            pdf.set_font("Helvetica", "B", 11)
-            pdf.set_text_color(*_C_SLATE)
-            pdf.multi_cell(_w(), 6, _sanitise(label))
-            pdf.ln(1)
-
-        # ── Metric / summary rows (lines starting with 2.X) ──────────────────
-        elif re.match(r"^\s*2\.\d", line):
-            if pdf.get_y() > page_h - 10:
-                pdf.add_page()
-            pdf.set_fill_color(*_C_GRAY_BG)
-            pdf.set_font("Helvetica", "B", 9)
-            pdf.set_text_color(*_C_SLATE)
-            pdf.multi_cell(_w(), 7, _sanitise(line.strip()), fill=True)
-
-        # ── Empty lines ──────────────────────────────────────────────────────
-        elif line.strip() == "":
-            pdf.ln(2)
-
-        # ── Regular body paragraphs (with inline **bold** handling) ──────────
-        else:
-            pdf.set_text_color(*_C_CHAR)
-            clean = re.sub(r"\*\*(.+?)\*\*", r"\1", line)
-            if re.match(r"^\*\*", line.strip()):
-                pdf.set_font("Helvetica", "B", 10)
-            else:
-                pdf.set_font("Helvetica", "", 10)
-            pdf.multi_cell(_w(), 6, _sanitise(clean))
-
-
-def generate_pdf_report(final_report_text, risk_tier=None, citation=None,
-                        company=None, industry=None):
-    pdf = _AuditPDF()
-    pdf.set_auto_page_break(auto=True, margin=20)
-    pdf.set_margins(left=20, top=20, right=20)
-    pdf.add_page()
-
-    # ── Cover title banner ────────────────────────────────────────────────────
-    pdf.set_fill_color(*_C_SLATE)
-    pdf.set_text_color(*_C_WHITE)
-    pdf.set_font("Helvetica", "B", 17)
-    pdf.cell(0, 16,
-             "EU AI Act Official Compliance Assessment Report",
-             ln=True, fill=True, align="C")
-    pdf.ln(4)
-
-    # ── Metadata summary card ─────────────────────────────────────────────────
-    pdf.set_fill_color(*_C_GRAY_BG)
-    pdf.set_draw_color(*_C_ACCENT)
-    pdf.set_line_width(0.3)
-
-    def _meta_row(label, value):
-        pdf.set_font("Helvetica", "B", 9)
-        pdf.set_text_color(*_C_SLATE)
-        pdf.cell(48, 8, label, fill=True)
-        pdf.set_font("Helvetica", "", 9)
-        pdf.set_text_color(*_C_CHAR)
-        pdf.cell(0, 8, _sanitise(value), ln=True, fill=True)
-
-    _meta_row("Generation Date:",      date.today().strftime("%B %d, %Y"))
-    if company:
-        _meta_row("Organisation:",     company)
-    if industry:
-        _meta_row("Industry Sector:",  industry)
-    if risk_tier:
-        _meta_row("EU AI Act Risk Tier:", risk_tier)
-    if citation:
-        _meta_row("Primary Citation:", citation)
-    _meta_row("Report Type:",          "Automated Readiness Indicator")
-    _meta_row("Legal Status:",         "Not Licensed Legal Counsel")
-    pdf.ln(5)
-
-    # ── Accent rule before body ───────────────────────────────────────────────
-    pdf.set_draw_color(*_C_SLATE)
-    pdf.set_line_width(0.6)
-    pdf.line(20, pdf.get_y(), 190, pdf.get_y())
-    pdf.ln(5)
-
-    # ── Parsed body ──────────────────────────────────────────────────────────
-    _render_body(pdf, final_report_text)
-
-    # ── Legal disclaimer ─────────────────────────────────────────────────────
-    if pdf.get_y() > pdf.h - pdf.b_margin - 18:
-        pdf.add_page()
-    pdf.ln(6)
-    pdf.set_draw_color(*_C_ACCENT)
-    pdf.set_line_width(0.25)
-    pdf.line(pdf.l_margin, pdf.get_y(), pdf.w - pdf.r_margin, pdf.get_y())
-    pdf.ln(3)
-    pdf.set_font("Helvetica", "I", 8)
-    pdf.set_text_color(100, 116, 139)
-    pdf.multi_cell(
-        pdf.w - pdf.l_margin - pdf.r_margin,
-        5,
-        _sanitise(_c("legal", "disclaimer", "pdf_line")),
-    )
-
-    return bytes(pdf.output())
-
-
-def save_report_to_downloads(pdf_bytes: bytes) -> tuple[bool, str, str | None]:
-    """
-    Write the audit PDF to the user's Downloads folder.
-    Returns (success, message, saved_path).
-    If the default filename is locked (e.g. open in a PDF viewer), retries with a timestamped name.
-    """
-    downloads_dir = os.path.join(os.path.expanduser("~"), "Downloads")
-    os.makedirs(downloads_dir, exist_ok=True)
-
-    candidates = [
-        os.path.join(downloads_dir, "EU_AI_Act_Audit_Report.pdf"),
-        os.path.join(
-            downloads_dir,
-            f"EU_AI_Act_Audit_Report_{date.today().strftime('%Y%m%d_%H%M%S')}.pdf",
-        ),
-    ]
-
-    last_err: Exception | None = None
-    for path in candidates:
-        try:
-            with open(path, "wb") as f:
-                f.write(pdf_bytes)
-            if path == candidates[0]:
-                return (
-                    True,
-                    f"✅ Success! Report saved to your Downloads folder:\n`{path}`",
-                    path,
-                )
-            return (
-                True,
-                "✅ Report saved with a new filename because the original PDF "
-                "is open or locked. Close `EU_AI_Act_Audit_Report.pdf` in your "
-                "PDF viewer if you want to overwrite it next time.\n\n"
-                f"Saved as:\n`{path}`",
-                path,
-            )
-        except PermissionError as err:
-            last_err = err
-        except OSError as err:
-            last_err = err
-
-    return (
-        False,
-        "Could not save the report to Downloads. This usually means "
-        "`EU_AI_Act_Audit_Report.pdf` is still open in another program "
-        "(Adobe, Edge, etc.). Close that file and try again.\n\n"
-        f"Technical detail: `{last_err}`",
-        None,
-    )
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# Intake option catalogues & deterministic risk classification
-# ══════════════════════════════════════════════════════════════════════════════
-
-INDUSTRY_OPTIONS = [
-    "Employment & HR (hiring, evaluation)",
-    "Banking & Credit Scoring",
-    "Critical Infrastructure (water, gas, electricity)",
-    "Education & Vocational Training",
-    "Healthcare & Medical Devices",
-    "Law Enforcement",
-    "General Purpose AI / LLM Development",
-    "Other / General Business Operations",
-]
-
-BIOMETRIC_OPTIONS = [
-    "No — the system never touches biometric or emotional data",
-    "Yes — biometric identification (face, fingerprint, voice matching)",
-    "Yes — emotion recognition (mood, stress, engagement inference)",
-    "Yes — both identification and emotion recognition",
-]
-
-POLICING_OPTIONS = [
-    "No — no predictive policing or profiling datasets are used",
-    "Yes — profiling datasets (behavioural scoring of individuals)",
-    "Yes — predictive policing (crime-risk forecasting on persons or areas)",
-]
-
-DATA_SOURCE_OPTIONS = [
-    "Private enterprise databases (our own or licensed first-party data)",
-    "Public scraping (data harvested from the open internet)",
-    "Mixed — both scraped public data and private databases",
-    "Third-party vendor — training data provenance unknown to us",
-]
-
-AUDIENCE_OPTIONS = [
-    "Internal employees only",
-    "External consumers / customers",
-    "Public infrastructure (utilities, transport, civic services)",
-]
-
-OVERSIGHT_OPTIONS = [
-    "Human-in-the-loop — a human can override any decision instantly",
-    "Human-on-the-loop — humans monitor but intervention is delayed",
-    "Fully autonomous — decisions execute with no human intervention",
-]
-
-ROLE_OPTIONS = [
-    "Deployer (we use the system)",
-    "Provider (we build and place it on the market)",
-    "Both provider and deployer",
-]
 
 SECTOR_MITIGATIONS = {
     "Employment & HR (hiring, evaluation)": (
@@ -473,7 +209,7 @@ SECTOR_MITIGATIONS = {
         "documentation for every score, adverse-action notices, and periodic "
         "fairness back-testing against protected groups."
     ),
-    "Critical Infrastructure (water, gas, electricity)": (
+    "Critical Infrastructure (water, gas, electricity, digital networks)": (
         "Annex III §2 safety components: enforce fail-safe manual fallback "
         "modes, redundancy testing, and incident reporting to national "
         "competent authorities within statutory windows."
@@ -488,10 +224,25 @@ SECTOR_MITIGATIONS = {
         "clinical validation evidence, post-market surveillance, and human "
         "clinician sign-off on diagnostic or triage outputs are mandatory."
     ),
+    "Insurance (life & health risk assessment / pricing)": (
+        "Annex III §5(c) insurance systems: document actuarial fairness "
+        "testing, explainability for adverse pricing decisions, and human "
+        "review of declined-coverage outcomes."
+    ),
     "Law Enforcement": (
         "Annex III §6 law-enforcement systems: most use cases require prior "
         "judicial authorisation, strict necessity tests, and Article 5 "
         "prohibitions on real-time remote biometric ID apply in public spaces."
+    ),
+    "Migration, Asylum & Border Control": (
+        "Annex III §7 migration systems: strict necessity and proportionality "
+        "documentation, individual assessment safeguards, and prohibition of "
+        "risk-assessment tools based solely on profiling."
+    ),
+    "Administration of Justice & Democratic Processes": (
+        "Annex III §8 justice systems: judicial-assistance tools must preserve "
+        "the decision-making autonomy of the judiciary; document that outputs "
+        "are advisory research aids, never determinative rulings."
     ),
     "General Purpose AI / LLM Development": (
         "Chapter V GPAI obligations: technical documentation, training-data "
@@ -503,61 +254,6 @@ SECTOR_MITIGATIONS = {
         "interact with AI (Article 50), and voluntary codes of conduct."
     ),
 }
-
-
-def classify_risk(intake: dict):
-    """Map deep wizard answers onto official EU AI Act risk tiers."""
-    industry  = intake.get("industry", "")
-    biometric = intake.get("biometric", "")
-    policing  = intake.get("policing", "")
-    audience  = intake.get("audience", "")
-    oversight = intake.get("oversight", "")
-
-    # Option strings start with "Yes —"/"No —", so gate on the Yes prefix
-    # before keyword matching (the No options repeat the same keywords).
-    bio_yes   = biometric.lower().startswith("yes")
-    emotion   = bio_yes and ("emotion" in biometric.lower() or "both" in biometric.lower())
-    bio_id    = bio_yes and ("identification" in biometric.lower() or "both" in biometric.lower())
-    pol_yes   = policing.lower().startswith("yes")
-    pred_pol  = pol_yes and "predictive policing" in policing.lower()
-    profiling = pol_yes and "profiling" in policing.lower()
-    public    = "Public infrastructure" in audience
-    autonomous = "Fully autonomous" in oversight
-
-    high_risk_sectors = {
-        "Employment & HR (hiring, evaluation)": "Annex III, Section 4",
-        "Banking & Credit Scoring": "Annex III, Section 5(b)",
-        "Critical Infrastructure (water, gas, electricity)": "Annex III, Section 2",
-        "Education & Vocational Training": "Annex III, Section 3",
-        "Healthcare & Medical Devices": "Annex III, Section 5(a)",
-        "Law Enforcement": "Annex III, Section 6",
-    }
-
-    # Tier 1 — Prohibited Practices (Article 5)
-    if pred_pol:
-        return ("PROHIBITED PRACTICES (Article 5)", "Article 5(1)(d)")
-    if emotion and industry in (
-        "Employment & HR (hiring, evaluation)",
-        "Education & Vocational Training",
-    ):
-        return ("PROHIBITED PRACTICES (Article 5)", "Article 5(1)(f)")
-    if bio_id and public and "Law Enforcement" in industry:
-        return ("PROHIBITED PRACTICES (Article 5)", "Article 5(1)(h)")
-
-    # Tier 2 — High-Risk Systems (Annex III)
-    if industry in high_risk_sectors:
-        return ("HIGH-RISK SYSTEM (Annex III)", high_risk_sectors[industry])
-    if bio_id or (profiling and autonomous) or (public and autonomous):
-        return ("HIGH-RISK SYSTEM (Annex III)", "Annex III, Section 1/7")
-
-    # Tier 3 — Specific Transparency Risks (Article 50 / Chapter V)
-    if industry == "General Purpose AI / LLM Development":
-        return ("SPECIFIC TRANSPARENCY RISK (Chapter V — GPAI)", "Articles 50-55")
-    if "External consumers" in audience:
-        return ("SPECIFIC TRANSPARENCY RISK (Article 50)", "Article 50(1)")
-
-    # Tier 4 — Minimal Risk
-    return ("MINIMAL RISK", "General Provisions")
 
 
 def build_obligations_register(intake: dict, tier: str) -> "pd.DataFrame":
@@ -808,6 +504,15 @@ def _render_intake_wizard(wz: dict):
             label_visibility="collapsed",
         )
 
+        _question(s2.get("q_social", "Does the system score or rank people's general behaviour?"),
+                  s2.get("hint_social", "Social scoring with cross-context detriment is prohibited under Article 5(1)(c)."),
+                  spaced=True)
+        sel_social = st.radio(
+            "Social scoring", SOCIAL_SCORING_OPTIONS,
+            index=_saved_index(SOCIAL_SCORING_OPTIONS, "social_scoring"),
+            label_visibility="collapsed",
+        )
+
         _question(s2.get("q_data_source", ""), s2.get("hint_data_source", ""), spaced=True)
         sel_data_source = st.radio(
             "Training data source", DATA_SOURCE_OPTIONS,
@@ -825,6 +530,7 @@ def _render_intake_wizard(wz: dict):
             if st.button(s2.get("next_button", "Continue →"), type="primary"):
                 intake["biometric"] = sel_biometric
                 intake["policing"] = sel_policing
+                intake["social_scoring"] = sel_social
                 intake["data_source"] = sel_data_source
                 st.session_state.step = 3
                 st.rerun()
@@ -851,6 +557,26 @@ def _render_intake_wizard(wz: dict):
             label_visibility="collapsed",
         )
 
+        _question(
+            s3.get("q_annex1", "Is the AI a safety component of — or itself — a product under EU harmonised legislation?"),
+            s3.get("hint_annex1", "Machinery, medical devices, vehicles, toys, lifts, radio equipment... A 'Yes' triggers high-risk status via Article 6(1) and Annex I."),
+            spaced=True)
+        sel_annex1 = st.radio(
+            "Annex I product-safety link", ANNEX_I_OPTIONS,
+            index=_saved_index(ANNEX_I_OPTIONS, "annex1"),
+            label_visibility="collapsed",
+        )
+
+        _question(
+            s3.get("q_function", "What functional role does the system play in decisions about people?"),
+            s3.get("hint_function", "Article 6(3) exempts narrow procedural, preparatory, or pattern-flagging tasks from high-risk status — unless the system performs profiling, which defeats the exemption."),
+            spaced=True)
+        sel_function = st.radio(
+            "Functional role", FUNCTION_OPTIONS,
+            index=_saved_index(FUNCTION_OPTIONS, "function"),
+            label_visibility="collapsed",
+        )
+
         st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
         col_back, col_next = st.columns([1, 5])
         with col_back:
@@ -861,6 +587,8 @@ def _render_intake_wizard(wz: dict):
             if st.button(s3.get("next_button", "Continue →"), type="primary"):
                 intake["audience"] = sel_audience
                 intake["oversight"] = sel_oversight
+                intake["annex1"] = sel_annex1
+                intake["function"] = sel_function
                 st.session_state.step = 4
                 st.rerun()
 
@@ -906,8 +634,9 @@ def _render_intake_wizard(wz: dict):
             )
             intake["description"] = pasted_val
 
-        # ── Live classification preview ───────────────────────────────────────
-        preview_tier, preview_citation = classify_risk(intake)
+        # ── Live classification preview (deterministic statutory cascade) ─────
+        preview = classify_risk(intake)
+        preview_tier, preview_citation = preview.tier, preview.citation
         st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
         st.markdown(
             f'<div class="section-label" style="margin-bottom:0.6rem;">{s4.get("summary_label", "")}</div>',
@@ -932,6 +661,11 @@ def _render_intake_wizard(wz: dict):
         st.metric(label=s4.get("preview_metric", "Preliminary Risk Tier"),
                   value=preview_tier)
         st.markdown(f"**Primary Citation:** {preview_citation}")
+
+        with st.expander(s4.get("pathway_label",
+                                "View the statutory decision pathway")):
+            for step_line in preview.decision_path:
+                st.markdown(f"- {step_line}")
 
         col_back, col_done = st.columns([1, 5])
         with col_back:
@@ -985,19 +719,47 @@ def _render_conformity_assessment(assess: dict, cc: dict):
 
 
 def _run_audit_pipeline(client, intake: dict, assess: dict):
-    """Sequential three-agent evaluation loop (A → B → C) with PDF compilation."""
-    # ── Risk classification (deep wizard inputs → official tiers) ─────────────
-    system_risk_status, risk_citation = classify_risk(intake)
+    """
+    Deterministic-first audit pipeline:
+
+        0. utils.risk_engine  — statutory classification cascade (no LLM)
+        0. utils.annex_iv     — Annex IV documentation scan + clarification matrix
+        A. Ingestion Analyst  — technical profile, evidence-bound
+        B. Regulatory Cross-Examiner — cited legal findings, KB-grounded
+        C. Executive Auditor Draftsman — 4-tier narrative (Tier 2 & Tier 4)
+
+    The LLM agents operate INSIDE the deterministic classification: they may
+    not re-classify, and every assertion must carry a statutory citation or
+    be routed to the Clarification Request Matrix.
+    """
+    # ── Stage 0a: deterministic statutory classification ─────────────────────
+    classification = classify_risk(intake)
+    system_risk_status, risk_citation = classification.tier, classification.citation
+    decision_path_block = "\n".join(f"  {s}" for s in classification.decision_path)
+
     sector_mitigation = SECTOR_MITIGATIONS.get(
         intake.get("industry", ""),
         SECTOR_MITIGATIONS["Other / General Business Operations"],
     )
 
-    official_law_context = load_legal_knowledge_base()
+    # ── Stage 0b: deterministic Annex IV documentation reconciliation ─────────
+    blueprint_text = intake.get("evidence_text", "") or ""
+    description = (intake.get("description") or "").strip()
+    documentation_corpus = "\n".join(filter(None, [blueprint_text, description]))
+    had_documentation = bool(documentation_corpus.strip())
 
-    # ── Build standardised intake payload ─────────────────────────────────────
-    # Wizard answers are prepended as structured metadata so Agent A
-    # receives a pre-normalised profile regardless of upload quality.
+    annex_iv_findings = scan_documentation(documentation_corpus)
+    annex_iv_block = findings_summary_block(annex_iv_findings, had_documentation)
+
+    clarification_matrix = build_clarification_matrix(
+        intake, annex_iv_findings, had_documentation)
+    clarification_text = clarification_block(clarification_matrix)
+
+    # ── Legal grounding corpus ────────────────────────────────────────────────
+    official_law_context = load_legal_knowledge_base()
+    kb_sources = knowledge_base_inventory()
+
+    # ── Standardised intake payload ───────────────────────────────────────────
     wizard_metadata = (
         "=== SMART COMPLIANCE WIZARD — DEEP INTAKE PROFILE ===\n"
         f"Company / Organisation:        {intake.get('company') or '[not provided]'}\n"
@@ -1005,49 +767,55 @@ def _run_audit_pipeline(client, intake: dict, assess: dict):
         f"S1 — Industry Sector:          {intake.get('industry', '—')}\n"
         f"S2 — Biometric Footprint:      {intake.get('biometric', '—')}\n"
         f"S2 — Profiling / Policing:     {intake.get('policing', '—')}\n"
+        f"S2 — Social Scoring:           {intake.get('social_scoring', '—')}\n"
         f"S2 — Training Data Source:     {intake.get('data_source', '—')}\n"
         f"S3 — Operational Scope:        {intake.get('audience', '—')}\n"
         f"S3 — Human Oversight Model:    {intake.get('oversight', '—')}\n"
+        f"S3 — Annex I Product Link:     {intake.get('annex1', '—')}\n"
+        f"S3 — Functional Role (Art 6(3)): {intake.get('function', '—')}\n"
         "=== END OF WIZARD METADATA ===\n"
     )
 
-    description = (intake.get("description") or "").strip()
     pasted_block = (
         f"\n--- USER-PROVIDED PRODUCT DESCRIPTION ---\n{description}\n"
         if description else ""
     )
-
-    blueprint_text = intake.get("evidence_text", "")
     combined_blueprint = (
         wizard_metadata
         + pasted_block
         + (f"\n--- UPLOADED DOCUMENT TEXT ---\n{blueprint_text}" if blueprint_text else "")
     )
 
-    checkbox_summary = (
-        f"- Industry Sector: {intake.get('industry', '—')}\n"
-        f"- Biometric / Emotion Processing: {intake.get('biometric', '—')}\n"
-        f"- Predictive Policing / Profiling: {intake.get('policing', '—')}\n"
-        f"- Training Data Provenance: {intake.get('data_source', '—')}\n"
-        f"- Deployment Audience: {intake.get('audience', '—')}\n"
-        f"- Human Oversight Guardrails: {intake.get('oversight', '—')}"
+    classification_block = (
+        "=== DETERMINISTIC STATUTORY CLASSIFICATION (authoritative — do not alter) ===\n"
+        f"TIER: {system_risk_status}\n"
+        f"PRIMARY CITATION: {risk_citation}\n"
+        f"DECISION PATHWAY:\n{decision_path_block}\n"
+        "=== END OF CLASSIFICATION ===\n"
     )
 
     final_report_text = None
+    action_plan_text = None
 
     try:
-        # ── Agent A: Ingestion Analyst ────────────────────────────────────────
+        # ── Agent A: Ingestion Analyst (evidence-bound profile) ──────────────
         with st.spinner(assess.get("spinner_a", "Agent A is analysing...")):
             prompt_a = (
-                "You are Agent A — the Ingestion Analyst in a multi-agent EU AI Act compliance pipeline.\n\n"
-                "Your sole task is to produce a structured TECHNICAL PROFILE of the target AI system "
-                "based on the user inputs below. Cover exactly these four dimensions:\n"
+                "You are Agent A — the Ingestion Analyst in a multi-agent EU AI Act "
+                "conformity-assessment pipeline.\n\n"
+                "Produce a structured TECHNICAL PROFILE of the target AI system covering "
+                "exactly these five dimensions:\n"
                 "1. Core Data Pipelines\n"
                 "2. Training Data Recency & Origin\n"
-                "3. Automation Thresholds\n"
-                "4. Systemic Decision Footprint\n\n"
-                f"SYSTEM RISK CLASSIFICATION: {system_risk_status} ({risk_citation})\n\n"
-                f"DEEP INTAKE CONFIGURATION:\n{checkbox_summary}\n\n"
+                "3. Automation Thresholds & Human Oversight Wiring\n"
+                "4. Systemic Decision Footprint (who is affected, at what scale)\n"
+                "5. Documentation Coverage (mirror the Annex IV scan verdicts below "
+                "verbatim — you may not upgrade any status)\n\n"
+                "EVIDENCE RULE: every statement in your profile must be traceable to the "
+                "intake payload below. Where the payload is silent, write exactly "
+                "'[NOT EVIDENCED IN INTAKE]' — do not infer, embellish, or fill gaps.\n\n"
+                f"{classification_block}\n"
+                f"{annex_iv_block}\n"
                 f"SYSTEM INTAKE PAYLOAD:\n{combined_blueprint if combined_blueprint.strip() else '[No intake data provided]'}\n\n"
                 "Output only the structured technical profile. Be precise and concise."
             )
@@ -1055,116 +823,157 @@ def _run_audit_pipeline(client, intake: dict, assess: dict):
             if not profile_a:
                 raise RuntimeError("Agent A returned no output — pipeline halted.")
 
-        # ── Agent B: Regulatory Cross-Examiner ────────────────────────────────
+        # ── Agent B: Regulatory Cross-Examiner (grounded findings) ───────────
         with st.spinner(assess.get("spinner_b", "Agent B is auditing...")):
             law_block = (
-                f"\n\nOFFICIAL REGULATORY REFERENCE DOCUMENTS:\n{official_law_context}\n"
-                if official_law_context else ""
+                f"\n\nOFFICIAL REGULATORY REFERENCE DOCUMENTS "
+                f"({len(kb_sources)} source files: {', '.join(kb_sources[:6])}...):\n"
+                f"{official_law_context}\n"
+                if official_law_context else
+                "\n\nNOTE: the knowledge base returned no reference text. Restrict "
+                "citations to provisions you can identify with certainty; route "
+                "anything uncertain to the Clarification Request Matrix.\n"
             )
             prompt_b = (
-                "You are Agent B — the Regulatory Cross-Examiner in a multi-agent EU AI Act compliance pipeline.\n\n"
-                "Agent A has produced the following technical profile of the target AI system:\n\n"
+                "You are Agent B — the Regulatory Cross-Examiner in a multi-agent EU AI Act "
+                "conformity-assessment pipeline.\n\n"
+                f"{CITATION_PROTOCOL}\n\n"
+                f"{classification_block}\n"
+                "Agent A's evidence-bound technical profile:\n\n"
                 f"{profile_a}\n\n"
-                f"The deterministic intake classifier has assigned this system the tier: "
-                f"{system_risk_status} (primary citation: {risk_citation}).\n\n"
-                "Your task: cross-examine this technical profile against EU AI Act law and identify ALL "
-                "legal non-compliance risks. You MUST explicitly check and cite findings under:\n"
-                "- Article 5 (Prohibited AI Practices)\n"
-                "- Article 10 (Data Governance & Training Data Requirements)\n"
-                "- Article 14 (Human Oversight Obligations)\n"
-                "- Article 50 (Transparency Obligations) where consumer-facing\n"
-                "- Any applicable Annex III subsections for high-risk systems\n"
-                "- Chapter V (GPAI obligations) where the system is a general-purpose model\n\n"
+                f"{annex_iv_block}\n"
+                f"{clarification_text}"
+                "Your task: cross-examine the profile against the EU AI Act and produce "
+                "cited legal findings. Work through this exact checklist in order:\n"
+                "B1. Article 5 exposure — confirm or refute each prohibited-practice hook "
+                "relevant to the profile (social scoring 5(1)(c), predictive policing 5(1)(d), "
+                "untargeted facial scraping 5(1)(e), workplace/education emotion recognition "
+                "5(1)(f), real-time remote biometric ID 5(1)(h)).\n"
+                "B2. Annex I pathway (Article 6(1)) — safety-component / harmonised-product analysis.\n"
+                "B3. Annex III pathway (Article 6(2)) — walk ALL EIGHT domains explicitly: "
+                "(1) Biometrics, (2) Critical infrastructure, (3) Education, (4) Employment, "
+                "(5) Essential public/private services, (6) Law enforcement, (7) Migration/"
+                "asylum/border control, (8) Administration of justice & democratic processes. "
+                "State MATCH or NO MATCH per domain with the Annex III point.\n"
+                "B4. Article 6(3) derogation — evaluate the deterministic exemption record in "
+                "the decision pathway; verify the profiling override of Article 6(3) third "
+                "subparagraph was applied correctly.\n"
+                "B5. High-risk obligations — Articles 8-15 (risk management 9, data governance 10, "
+                "technical documentation 11/Annex IV, logging 12, transparency to deployers 13, "
+                "human oversight 14, accuracy/robustness/cybersecurity 15).\n"
+                "B6. Annex IV reconciliation — for every component the scan marks MISSING, "
+                "record a 'CRITICAL REGULATORY DEFICIENCY' finding citing Article 11 and the "
+                "specific Annex IV point; for SHALLOW components, record a depth deficiency. "
+                "NEVER describe documentation content that is not evidenced.\n"
+                "B7. Article 50 transparency and Chapter V GPAI duties where applicable.\n\n"
                 f"{ARTICLE_50_GUARDRAIL}\n"
                 f"{law_block}"
-                "Output: raw legal findings, specific compliance breach maps, and definitive statutory citations. "
-                "Be exhaustive and cite chapter/article/paragraph numbers precisely."
+                "Output: numbered legal findings (F-1, F-2, ...), each with its statutory "
+                "citation, the evidence relied on, and a severity (CRITICAL/HIGH/MEDIUM). "
+                "Close with a verbatim restatement of the Clarification Request Matrix items "
+                "that remain open."
             )
             findings_b = call_gemini_with_retry(client, prompt_b)
             if not findings_b:
                 raise RuntimeError("Agent B returned no output — pipeline halted.")
 
-        # ── Agent C: Executive Auditor Draftsman ──────────────────────────────
+        # ── Agent C: Executive Auditor Draftsman (Tier 2 narrative) ──────────
         with st.spinner(assess.get("spinner_c", "Agent C is drafting...")):
             prompt_c = (
-                "You are Agent C — the Executive Auditor Draftsman in a multi-agent EU AI Act compliance pipeline.\n\n"
-                "Agent B has produced the following raw legal findings:\n\n"
+                "You are Agent C — the Executive Auditor Draftsman in a multi-agent EU AI Act "
+                "conformity-assessment pipeline.\n\n"
+                f"{CITATION_PROTOCOL}\n\n"
+                f"{classification_block}\n"
+                "Agent B's cited legal findings:\n\n"
                 f"{findings_b}\n\n"
-                "Your task: transform these findings into a pristine, authoritative "
-                "**EU AI Act Formal Conformity Assessment Report** in clean markdown.\n\n"
-                f"OFFICIAL RISK TIER (from the deterministic intake classifier): "
-                f"{system_risk_status} — primary citation {risk_citation}. "
-                "State this tier verbatim in the Executive Summary as one of the four "
-                "official EU AI Act tiers: Prohibited Practices, High-Risk Systems, "
-                "Specific Transparency Risks, or Minimal Risk.\n\n"
-                f"SECTOR-SPECIFIC MITIGATION MANDATE for "
-                f"{intake.get('industry', 'the selected industry')}: {sector_mitigation} "
-                "Weave these sector-specific measures into Section 3 as concrete, "
-                "named remediation steps.\n\n"
-                "You MUST follow this exact multi-level decimal numbering scheme throughout "
-                "the entire document. Do not use plain bullet points or unnumbered lists "
-                "anywhere in Sections 1, 2, or 3.\n\n"
+                "Draft the NARRATIVE LAYERS of a formal conformity report in clean markdown. "
+                "The deterministic engine already renders the risk banner, the statutory "
+                "decision pathway, and the Annex IV gap table — do NOT reproduce them. "
+                "Produce exactly these sections:\n\n"
                 "## Executive Summary\n"
-                "Open with a short executive summary header stating the system classification, "
-                "primary regulatory citation, and overall compliance verdict.\n\n"
-                "## Section 1: Executive Compliance Breach Inventory\n"
-                "List every identified regulatory breach using this strict structure:\n"
+                "Three to five sentences: state the deterministic tier verbatim, the primary "
+                "citation, the count of CRITICAL findings, and the overall conformity verdict. "
+                "Write for a non-lawyer executive; define any term of art in plain language.\n\n"
+                "## Section 1: Compliance Breach Inventory\n"
+                "One numbered entry per finding from Agent B:\n"
                 "  1.1 [Breach Title]\n"
-                "    1.1.1 Systemic Vulnerability: [describe the concrete technical flaw]\n"
-                "    1.1.2 Legal Violation: [cite exact Article, paragraph, and Annex]\n"
+                "    1.1.1 Systemic Vulnerability: [concrete technical flaw, plain language]\n"
+                "    1.1.2 Legal Violation: [exact Article/paragraph/Annex point citation]\n"
                 "    1.1.3 Severity: [CRITICAL / HIGH / MEDIUM]\n"
-                "  1.2 [Next Breach Title]\n"
-                "    1.2.1 Systemic Vulnerability: ...\n"
-                "    1.2.2 Legal Violation: ...\n"
-                "    1.2.3 Severity: ...\n"
-                "Continue for every breach found. Prefix each top-level breach with ⚠️.\n\n"
-                f"{ARTICLE_50_GUARDRAIL}\n\n"
+                "Annex IV items marked MISSING must appear here titled "
+                "'Critical Regulatory Deficiency — [component]'.\n\n"
                 "## Section 2: Regulatory Metric Map\n"
-                "Evaluate each article using this exact numbered block format — "
-                "no tables, no plain bullets:\n"
-                "  2.1 Article 5 Compliance Status: [PASS / FAIL / PARTIAL]\n"
-                "       Rationale: [one-sentence justification]\n"
-                "  2.2 Article 10 Compliance Status: [PASS / FAIL / PARTIAL]\n"
-                "       Rationale: ...\n"
-                "  2.3 Article 14 Compliance Status: [PASS / FAIL / PARTIAL]\n"
-                "       Rationale: ...\n"
-                "  2.4 Annex III Compliance Status: [PASS / FAIL / PARTIAL / N/A]\n"
-                "       Rationale: ...\n\n"
-                "## Section 3: Mandatory Remediation Roadmap\n"
-                "Structure the remediation plan as sequentially indexed phases and steps:\n"
-                "  3.1 Phase I: Immediate Technical Remediation\n"
-                "    Step 3.1.1: [first concrete action — owner, tool, deadline]\n"
-                "    Step 3.1.2: [second concrete action]\n"
-                "  3.2 Phase II: Lifecycle Logging Architecture\n"
-                "    Step 3.2.1: [first concrete action]\n"
-                "    Step 3.2.2: [second concrete action]\n"
-                "  3.3 Phase III: Governance & Human Oversight Controls\n"
-                "    Step 3.3.1: [first concrete action]\n"
-                "    Step 3.3.2: [second concrete action]\n"
-                "Add further phases as required by the severity of findings.\n\n"
-                "## Closing Certification Statement\n"
-                "End with a formal certification paragraph stating the audit scope, "
-                "methodology, and the conditions under which conformity may be declared.\n\n"
-                "CRITICAL FORMATTING RULE: Every finding, metric row, and roadmap item "
-                "MUST carry its decimal index (1.X / 1.X.X, 2.X, 3.X / Step 3.X.X) "
-                "as a hard prefix in the output text so the structure is preserved "
-                "identically when rendered in both the markdown dashboard and the PDF export."
+                "  2.1 Article 5 Compliance Status: [PASS / FAIL / PARTIAL]  Rationale: ...\n"
+                "  2.2 Article 10 Compliance Status: [...]  Rationale: ...\n"
+                "  2.3 Article 11 / Annex IV Documentation Status: [...]  Rationale: ...\n"
+                "  2.4 Article 14 Compliance Status: [...]  Rationale: ...\n"
+                "  2.5 Article 15 Compliance Status: [...]  Rationale: ...\n"
+                "  2.6 Annex III Classification Status: [CONFIRMED HIGH-RISK / EXEMPT UNDER "
+                "6(3) / NOT APPLICABLE]  Rationale: ...\n"
+                "Use INSUFFICIENT EVIDENCE instead of PASS wherever the intake cannot "
+                "support a verdict, and reference the matching CR-number.\n\n"
+                f"SECTOR-SPECIFIC MITIGATION MANDATE for "
+                f"{intake.get('industry', 'the selected industry')}: {sector_mitigation}\n\n"
+                f"{ARTICLE_50_GUARDRAIL}\n\n"
+                "FORMATTING RULE: every finding and metric row carries its decimal index "
+                "(1.X / 1.X.X, 2.X) as a hard prefix. No plain bullets in Sections 1-2."
             )
             final_report_text = call_gemini_with_retry(client, prompt_c)
             if not final_report_text:
                 raise RuntimeError("Agent C returned no output — pipeline halted.")
 
+        # ── Agent C (second pass): Tier 4 Engineering Action Plan ────────────
+        with st.spinner(assess.get("spinner_d",
+                                   "Agent C is compiling the engineering action plan...")):
+            prompt_d = (
+                "You are Agent C — now drafting TIER 4: THE ENGINEERING ACTION PLAN of the "
+                "conformity report.\n\n"
+                f"{CITATION_PROTOCOL}\n\n"
+                f"{classification_block}\n"
+                "The cited findings and breach inventory:\n\n"
+                f"{findings_b}\n\n"
+                f"{annex_iv_block}\n"
+                "Write a remediation roadmap FOR A SOFTWARE ENGINEERING TEAM, not lawyers. "
+                "Plain language, concrete deliverables, no legalese beyond the citations. "
+                "Structure:\n"
+                "  3.1 Phase I: Immediate Technical Remediation (0-30 days)\n"
+                "    Step 3.1.1: [action — deliverable, suggested owner role, statutory anchor]\n"
+                "    Step 3.1.2: ...\n"
+                "  3.2 Phase II: Documentation & Data Governance Build-Out (30-90 days)\n"
+                "    Step 3.2.1: [one step per Annex IV component marked MISSING or SHALLOW, "
+                "using the scan's mitigation text as the deliverable]\n"
+                "  3.3 Phase III: Oversight, Logging & Monitoring Architecture (90-180 days)\n"
+                "    Step 3.3.1: ...\n"
+                "Add further phases only if the findings demand them. Every step ends with "
+                "its statutory anchor in brackets. If the tier is PROHIBITED, Phase I must "
+                "begin with the decommissioning plan [Article 5] and state plainly that no "
+                "engineering fix can legalise the practice.\n\n"
+                f"SECTOR MANDATE to weave into the phases: {sector_mitigation}"
+            )
+            action_plan_text = call_gemini_with_retry(client, prompt_d)
+            if not action_plan_text:
+                raise RuntimeError("Agent C (action plan) returned no output — pipeline halted.")
+
     except Exception as pipeline_err:
         st.error(f"Multi-Agent Pipeline Failure. Details: {pipeline_err}")
 
-    if final_report_text:
-        st.session_state.report_markdown = final_report_text
+    if final_report_text and action_plan_text:
+        pathway_md = "\n".join(f"1. {s}" for s in classification.decision_path)
+        st.session_state.report_markdown = (
+            f"### Statutory Decision Pathway (deterministic)\n{pathway_md}\n\n"
+            f"{final_report_text}\n\n## Engineering Action Plan\n{action_plan_text}"
+        )
         st.session_state.pdf_data_bytes = generate_pdf_report(
             final_report_text,
-            risk_tier=system_risk_status,
-            citation=risk_citation,
+            classification=classification,
+            annex_iv_findings=annex_iv_findings,
+            had_documentation=had_documentation,
+            clarification_matrix=clarification_matrix,
             company=intake.get("company") or None,
             industry=intake.get("industry") or None,
+            disclaimer_line=_c("legal", "disclaimer", "pdf_line"),
+            legal_narrative=final_report_text,
+            action_plan=action_plan_text,
         )
         st.session_state.risk_tier = system_risk_status
         st.session_state.risk_citation = risk_citation

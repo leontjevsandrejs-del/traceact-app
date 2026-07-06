@@ -1,66 +1,112 @@
-import glob
-import os
+"""
+Standalone single-shot audit helper (legacy CLI/API lane).
+
+The Streamlit app uses the full multi-agent pipeline in ui_layouts.py; this
+module provides the same grounding guarantees for programmatic callers:
+deterministic classification via utils.risk_engine, Annex IV reconciliation
+via utils.annex_iv, and the cite-your-source constraint on the model call.
+"""
 
 from google import genai
-from pypdf import PdfReader
+
+from utils.knowledge import load_legal_knowledge_base
+from utils.risk_engine import classify_risk
+from utils.annex_iv import (
+    scan_documentation,
+    findings_summary_block,
+    build_clarification_matrix,
+    clarification_block,
+)
+
 
 def get_knowledge_base_text():
-    kb_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'knowledge_base')
-    kb_text = ""
-    if os.path.exists(kb_path):
-        # Read txt files
-        for filepath in glob.glob(os.path.join(kb_path, '*.txt')):
-            with open(filepath, 'r', encoding='utf-8') as f:
-                kb_text += f"\n--- {os.path.basename(filepath)} ---\n"
-                kb_text += f.read()
-        
-        # Read pdf files
-        for filepath in glob.glob(os.path.join(kb_path, '*.pdf')):
-            try:
-                reader = PdfReader(filepath)
-                kb_text += f"\n--- {os.path.basename(filepath)} ---\n"
-                for page in reader.pages:
-                    text = page.extract_text()
-                    if text:
-                        kb_text += text + "\n"
-            except Exception as e:
-                kb_text += f"\n[Error reading PDF {os.path.basename(filepath)}: {str(e)}]\n"
-    return kb_text
+    """Full tagged legal corpus (.txt and Annex .pdf files, cached)."""
+    return load_legal_knowledge_base()
 
-def run_audit(client: genai.Client, model_name: str, manual_triage_data, evidence_text):
+
+def run_audit(client: genai.Client, model_name: str, manual_triage_data,
+              evidence_text, intake: dict | None = None):
+    """
+    Run a grounded single-shot audit.
+
+    ``intake`` (optional) is the structured wizard dict; when provided the
+    deterministic risk engine pre-classifies the system and the model is
+    barred from re-classifying.
+    """
     if client is None:
         return "Error: Gemini API key is missing."
 
     kb_context = get_knowledge_base_text()
-    
-    prompt = f"""You are an elite, risk-adverse corporate auditor specializing in European technology regulations.
+    intake = intake or {}
 
-Here is the reference knowledge base (EU AI Act context):
+    classification_block = ""
+    if intake:
+        classification = classify_risk(intake)
+        pathway = "\n".join(f"  {s}" for s in classification.decision_path)
+        classification_block = (
+            "=== DETERMINISTIC STATUTORY CLASSIFICATION (authoritative — do not alter) ===\n"
+            f"TIER: {classification.tier}\n"
+            f"PRIMARY CITATION: {classification.citation}\n"
+            f"DECISION PATHWAY:\n{pathway}\n"
+            "=== END OF CLASSIFICATION ===\n\n"
+        )
+
+    had_documentation = bool((evidence_text or "").strip())
+    findings = scan_documentation(evidence_text or "")
+    annex_iv_block = findings_summary_block(findings, had_documentation)
+    matrix = build_clarification_matrix(intake, findings, had_documentation)
+    matrix_block = clarification_block(matrix)
+
+    prompt = f"""You are a precision EU AI Act conformity auditor. You operate under a strict
+zero-mistake protocol:
+
+CITATION PROTOCOL (binding):
+1. Every classification or legal assertion must carry an explicit statutory
+   anchor — Article, paragraph, Recital, or Annex point of Regulation (EU)
+   2024/1689.
+2. If you cannot anchor a statement to a specific provision, do not make it;
+   write "INSUFFICIENT EVIDENCE — clarification required" instead.
+3. Never invent Article numbers or describe documentation content that the
+   ANNEX IV DOCUMENTATION SCAN marks as MISSING or SHALLOW.
+4. Where a deterministic classification block is present, it is authoritative
+   — analyse within the tier, never re-classify.
+
+{classification_block}Reference knowledge base (EU AI Act source documents):
 {kb_context}
 
-Here is the manual triage data provided by the user:
+{annex_iv_block}
+{matrix_block}
+Manual triage data provided by the user:
 {manual_triage_data}
 
-Here is the system architecture and data governance evidence uploaded by the user:
+System architecture and data-governance evidence uploaded by the user:
 {evidence_text}
 
-Your single task is to analyze the text descriptions of the corporate software project and look for compliance gaps.
-You must:
-1. Determine if the project falls under Prohibited, High-Risk, or Limited Risk.
-2. Cite the exact section of the law that applies.
-3. List any missing items (e.g., lack of human oversight, missing bias checks, missing documentation) in a clean bulleted list labeled 'Action Required'.
+Your tasks:
+1. Confirm the risk tier (Prohibited / High-Risk / Transparency-Limited /
+   Minimal) with the exact statutory pathway that produces it.
+2. Cite the exact provision for every finding.
+3. List missing Annex IV components as 'Critical Regulatory Deficiency'
+   entries with actionable mitigation steps — never assume undocumented
+   coverage exists.
+4. Restate any open Clarification Request Matrix items instead of guessing.
 
 Output format:
-### Classification: [Prohibited Risk / High-Risk / Limited Risk]
+### Classification: [tier]
 
-### Citation
-[Citation here]
+### Statutory Pathway
+[numbered steps with citations]
+
+### Critical Regulatory Deficiencies
+*   [component — citation — mitigation]
 
 ### Action Required
-*   [Action 1]
-*   [Action 2]
+*   [action — citation]
+
+### Open Clarification Requests
+*   [CR items, if any]
 """
-    
+
     try:
         response = client.models.generate_content(
             model=model_name,
@@ -78,4 +124,3 @@ Output format:
             )
         except Exception as list_err:
             return f"An error occurred during the audit: {str(e)}\n\n(Failed to list models: {str(list_err)})"
-

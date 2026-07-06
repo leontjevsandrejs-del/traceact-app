@@ -26,9 +26,11 @@
         "q_biometric": "Does the system process biometric data for identification or emotion recognition?",
         "hint_biometric": "Emotion recognition in workplaces or education is a prohibited practice under Article 5(1)(f). Biometric identification triggers Annex III Section 1.",
         "q_policing": "Does it use predictive policing or profiling datasets?",
-        "hint_policing": "Predictive policing based on profiling is prohibited under Article 5(1)(d). Behavioural profiling elevates Annex III exposure.",
+        "hint_policing": "Predictive policing based on profiling is prohibited under Article 5(1)(d). Behavioural profiling elevates Annex III exposure and defeats the Article 6(3) exemption.",
+        "q_social": "Does the system score or rank people's general social behaviour or personal traits?",
+        "hint_social": "Social scoring that leads to detrimental treatment in unrelated contexts, or disproportionate to the behaviour, is prohibited outright under Article 5(1)(c).",
         "q_data_source": "Where is the training data sourced from?",
-        "hint_data_source": "Public scraping raises Article 10 data-governance and GDPR lawful-basis issues; unknown vendor provenance shifts documentation duties under Article 25.",
+        "hint_data_source": "Untargeted scraping of facial images is prohibited under Article 5(1)(e). Public scraping raises Article 10 data-governance issues; unknown vendor provenance shifts documentation duties under Article 25.",
         "next_button": "Continue to Deployment & Oversight →"
       },
       "step3": {
@@ -37,6 +39,10 @@
         "hint_audience": "Consumer-facing systems trigger Article 50 transparency duties; public-infrastructure deployment elevates Annex III Section 2 exposure.",
         "q_oversight": "What human oversight guardrails are active?",
         "hint_oversight": "Article 14 requires effective human oversight for high-risk systems — including the ability to override or interrupt the system at any time.",
+        "q_annex1": "Is the AI a safety component of — or itself — a product covered by EU harmonised legislation?",
+        "hint_annex1": "Machinery, medical devices, vehicles, toys, lifts, radio equipment and similar products requiring third-party conformity assessment trigger high-risk status via Article 6(1) and Annex I.",
+        "q_function": "What functional role does the system play in decisions about natural persons?",
+        "hint_function": "Article 6(3) exempts narrow procedural, preparatory, refinement, or pattern-flagging tasks from high-risk status — unless the system performs profiling, which makes the exemption statutorily unavailable.",
         "next_button": "Continue to Evidence & Review →"
       },
       "step4": {
@@ -71,7 +77,8 @@
       "missing_intake_error": "Please complete the Smart Compliance Wizard in the **System Triage** tab before running an audit.",
       "spinner_a": "🕵️‍♂️ Agent A [Ingestion Analyst] is dissecting system blueprints...",
       "spinner_b": "⚖️ Agent B [Regulatory Cross-Examiner] is auditing text against official EU Annexes...",
-      "spinner_c": "📄 Agent C [Auditor Draftsman] is compiling formal regulatory certification files..."
+      "spinner_c": "📄 Agent C [Auditor Draftsman] is compiling formal regulatory certification files...",
+      "spinner_d": "🛠️ Agent C [Auditor Draftsman] is compiling the Tier 4 engineering action plan..."
     },
     "command_center": {
       "label": "Compliance Command Center",

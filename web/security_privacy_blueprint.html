@@ -1,0 +1,161 @@
+<!--
+  ═══════════════════════════════════════════════════════════════════════════
+  TraceAct — Security & Data Privacy Blueprint · Web UI Component
+  Production snippet for pvservices.eu landing page framework.
+
+  ACCURACY NOTE (read before publishing)
+  The application is local-first: document parsing, regulatory triage, and
+  report generation all execute on the customer's desktop, and NO customer
+  data ever reaches PV Services infrastructure. However, the AI risk
+  analysis step transmits extracted document text to the Google Gemini API
+  over TLS. This component therefore claims a "Local-First, Zero-Retention
+  Architecture" with transparent sub-processor disclosure — NOT a fully
+  offline zero-knowledge claim, which would be factually incorrect and a
+  liability in enterprise procurement review. Do not strengthen the wording
+  beyond what the codebase does.
+  ═══════════════════════════════════════════════════════════════════════════
+-->
+
+<section class="ta-privacy" id="security-privacy" aria-labelledby="ta-privacy-title">
+  <style>
+    .ta-privacy {
+      --ta-blue: #2563EB;
+      --ta-ink: #0F172A;
+      --ta-slate: #64748B;
+      --ta-border: #E2E8F0;
+      font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 3.5rem 1.5rem;
+      color: var(--ta-ink);
+    }
+    .ta-privacy__eyebrow {
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--ta-blue); margin-bottom: 0.35rem;
+    }
+    .ta-privacy__title {
+      font-size: 1.7rem; font-weight: 700; letter-spacing: -0.02em;
+      margin: 0 0 0.5rem;
+    }
+    .ta-privacy__lede {
+      font-size: 0.95rem; color: var(--ta-slate); line-height: 1.7;
+      max-width: 640px; margin: 0 0 2.25rem;
+    }
+    .ta-privacy__grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.1rem; margin-bottom: 2.25rem;
+    }
+    .ta-privacy__card {
+      background: #FFFFFF; border: 1px solid var(--ta-border);
+      border-radius: 12px; padding: 1.25rem 1.35rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+    .ta-privacy__card h3 {
+      display: flex; align-items: center; gap: 0.5rem;
+      font-size: 0.9rem; font-weight: 600; margin: 0 0 0.5rem;
+    }
+    .ta-privacy__card p {
+      font-size: 0.8rem; color: var(--ta-slate); line-height: 1.65; margin: 0;
+    }
+    .ta-privacy__disclosure {
+      background: #F8FAFC; border: 1px solid var(--ta-border);
+      border-left: 3px solid var(--ta-blue); border-radius: 0 12px 12px 0;
+      padding: 1.1rem 1.35rem;
+    }
+    .ta-privacy__disclosure h3 {
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--ta-slate); margin: 0 0 0.5rem;
+    }
+    .ta-privacy__disclosure p {
+      font-size: 0.8rem; color: #334155; line-height: 1.7; margin: 0 0 0.6rem;
+    }
+    .ta-privacy__disclosure p:last-child { margin-bottom: 0; }
+  </style>
+
+  <p class="ta-privacy__eyebrow">Security &amp; Data Privacy Blueprint</p>
+  <h2 class="ta-privacy__title" id="ta-privacy-title">
+    Local-First, Zero-Retention Architecture
+  </h2>
+  <p class="ta-privacy__lede">
+    The EU AI Act Compliance Auditor is engineered as a self-contained desktop
+    application. Your compliance workspace — document ingestion, regulatory
+    triage, and report assembly — executes entirely on your own hardware,
+    inside your own network perimeter. PV Services operates no backend for
+    this product: we cannot see, store, or retain your data, because it is
+    never sent to us.
+  </p>
+
+  <div class="ta-privacy__grid">
+    <div class="ta-privacy__card">
+      <h3>&#128274; On-Device Processing</h3>
+      <p>
+        All document parsing (PDF and text extraction), risk-triage logic, and
+        audit report generation run natively on the workstation. The embedded
+        interface is served exclusively on the local loopback address
+        (127.0.0.1) and is never exposed to the network.
+      </p>
+    </div>
+    <div class="ta-privacy__card">
+      <h3>&#128683; Zero Vendor Server Contact</h3>
+      <p>
+        No PV Services cloud component exists in the data path. The application
+        requires no account, no license activation server, and no registration.
+        Uploaded evidence and audit results are never transmitted to, or
+        retained on, PV Services infrastructure.
+      </p>
+    </div>
+    <div class="ta-privacy__card">
+      <h3>&#128202; No Telemetry or Tracking</h3>
+      <p>
+        Usage analytics and telemetry are disabled at build time. The
+        application emits no behavioral tracking, crash reporting, or usage
+        statistics to any party.
+      </p>
+    </div>
+    <div class="ta-privacy__card">
+      <h3>&#128273; Customer-Held Credentials</h3>
+      <p>
+        The AI analysis credential (API key) is provisioned and held by your
+        organization in a local configuration file on the workstation. You
+        control the key, its rotation, and its revocation at all times.
+      </p>
+    </div>
+    <div class="ta-privacy__card">
+      <h3>&#128737;&#65039; No Training-Loop Exposure</h3>
+      <p>
+        The product contains no data-collection pipeline of ours, and PV
+        Services never uses customer content for model training. AI inference
+        is performed via an enterprise API tier whose terms exclude the use of
+        submitted content for model training (see disclosure below).
+      </p>
+    </div>
+    <div class="ta-privacy__card">
+      <h3>&#9989; Verifiable Distribution</h3>
+      <p>
+        Every installer release is published with its SHA-256 cryptographic
+        checksum, enabling IT departments to verify binary integrity and
+        whitelist the application before internal rollout.
+      </p>
+    </div>
+  </div>
+
+  <div class="ta-privacy__disclosure" role="note">
+    <h3>Transparent Sub-Processor Disclosure — AI Analysis Step</h3>
+    <p>
+      The optional AI-assisted risk classification step transmits the text
+      extracted from your uploaded evidence, together with your triage
+      responses, to the Google Gemini API over TLS-encrypted channels for the
+      sole purpose of generating your compliance assessment. This is the only
+      moment any customer content leaves the workstation, it occurs only when
+      you initiate an audit, and the response is returned directly to your
+      local session.
+    </p>
+    <p>
+      Under the Gemini API paid-tier terms, submitted prompts are not used to
+      train or improve Google models. Organizations with stricter data
+      residency mandates can route this step through their own Google Cloud
+      project and region, retaining full contractual control over the
+      inference boundary.
+    </p>
+  </div>
+</section>

@@ -1,0 +1,170 @@
+<!--
+  ═══════════════════════════════════════════════════════════════════════════
+  TraceAct — EU AI Act Auditor · Secure Download Section
+  Production snippet for pvservices.eu landing page framework.
+
+  INTEGRATION NOTES
+  · The two <meta> tags below belong in the page <head>. CSP delivered via
+    an HTTP response header is stronger than a meta tag (meta cannot enforce
+    frame-ancestors); mirror these directives server-side where possible:
+        Content-Security-Policy: default-src 'self'; script-src 'self';
+          style-src 'self' 'unsafe-inline'; img-src 'self' data:;
+          object-src 'none'; base-uri 'self'; form-action 'self';
+          frame-ancestors 'none'; upgrade-insecure-requests
+        X-Content-Type-Options: nosniff
+        Referrer-Policy: strict-origin-when-cross-origin
+  · Update data-checksum + the badge text whenever a new installer ships
+    (regenerate with: python utils/generate_hash.py).
+  ═══════════════════════════════════════════════════════════════════════════
+-->
+
+<!-- ── Place inside <head> ─────────────────────────────────────────────── -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+
+<!-- ── Place inside <body> ─────────────────────────────────────────────── -->
+<section class="ta-download" id="download" aria-labelledby="ta-download-title">
+  <style>
+    .ta-download {
+      --ta-blue: #2563EB;
+      --ta-blue-dark: #1D4ED8;
+      --ta-ink: #0F172A;
+      --ta-slate: #64748B;
+      --ta-border: #E2E8F0;
+      font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem;
+      color: var(--ta-ink);
+    }
+    .ta-download__eyebrow {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--ta-blue);
+      margin-bottom: 0.35rem;
+    }
+    .ta-download__title {
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 0 0 0.4rem;
+    }
+    .ta-download__sub {
+      font-size: 0.9rem;
+      color: var(--ta-slate);
+      line-height: 1.6;
+      margin: 0 0 1.75rem;
+    }
+    .ta-download__btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      background: linear-gradient(135deg, var(--ta-blue) 0%, var(--ta-blue-dark) 100%);
+      color: #FFFFFF;
+      text-decoration: none;
+      font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      padding: 0.85rem 2rem;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(37, 99, 235, 0.28);
+      transition: box-shadow 0.2s, transform 0.15s;
+    }
+    .ta-download__btn:hover {
+      box-shadow: 0 4px 18px rgba(37, 99, 235, 0.4);
+      transform: translateY(-1px);
+    }
+    .ta-download__btn:focus-visible {
+      outline: 3px solid rgba(37, 99, 235, 0.45);
+      outline-offset: 2px;
+    }
+    .ta-download__meta {
+      font-size: 0.75rem;
+      color: var(--ta-slate);
+      margin-top: 0.75rem;
+    }
+    .ta-checksum {
+      margin-top: 1.5rem;
+      background: #F8FAFC;
+      border: 1px solid var(--ta-border);
+      border-left: 3px solid var(--ta-blue);
+      border-radius: 0 10px 10px 0;
+      padding: 0.85rem 1.1rem;
+    }
+    .ta-checksum__label {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--ta-slate);
+      margin-bottom: 0.45rem;
+    }
+    .ta-checksum__value {
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+      font-size: 0.76rem;
+      color: var(--ta-ink);
+      word-break: break-all;
+      user-select: all;
+      line-height: 1.5;
+    }
+    .ta-checksum__hint {
+      font-size: 0.7rem;
+      color: #94A3B8;
+      margin-top: 0.5rem;
+    }
+    .ta-checksum__hint code {
+      font-size: 0.68rem;
+      background: #EFF6FF;
+      border-radius: 4px;
+      padding: 1px 5px;
+      color: var(--ta-blue-dark);
+    }
+  </style>
+
+  <p class="ta-download__eyebrow">Enterprise Desktop Distribution</p>
+  <h2 class="ta-download__title" id="ta-download-title">EU AI Act Compliance Auditor</h2>
+  <p class="ta-download__sub">
+    Signed Windows installer for on-premise deployment. Compatible with
+    Windows 10/11 (x64). No account, telemetry, or server registration required.
+  </p>
+
+  <a class="ta-download__btn"
+     href="/downloads/mysetup.exe"
+     download="EU_AI_Auditor_Setup.exe"
+     target="_blank"
+     rel="noopener noreferrer"
+     type="application/octet-stream"
+     data-checksum-sha256="a34644a7702eadfc5ce7afe8ce5a62d389eb71c0661656019e476ed21f95af3f">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M8 1v9m0 0L4.5 6.5M8 10l3.5-3.5M2 12.5V14h12v-1.5"
+            stroke="currentColor" stroke-width="1.6"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Download for Windows
+  </a>
+  <p class="ta-download__meta">Version 1.5 &middot; 97 MB &middot; Inno Setup package</p>
+
+  <div class="ta-checksum" role="note" aria-label="Binary integrity verification">
+    <div class="ta-checksum__label">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M8 1L2.5 3.5V8c0 3.2 2.3 6.1 5.5 7 3.2-.9 5.5-3.8 5.5-7V3.5L8 1z"
+              stroke="#2563EB" stroke-width="1.4" stroke-linejoin="round"/>
+        <path d="M5.5 8l1.8 1.8L10.8 6.3" stroke="#2563EB" stroke-width="1.4"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      SHA-256 Integrity Checksum
+    </div>
+    <div class="ta-checksum__value">a34644a7702eadfc5ce7afe8ce5a62d389eb71c0661656019e476ed21f95af3f</div>
+    <p class="ta-checksum__hint">
+      Verify after download:
+      <code>certutil -hashfile EU_AI_Auditor_Setup.exe SHA256</code>
+      (Windows) or <code>shasum -a 256</code> (macOS/Linux).
+    </p>
+  </div>
+</section>
