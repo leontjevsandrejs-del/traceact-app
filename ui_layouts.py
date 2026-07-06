@@ -626,11 +626,23 @@ def _render_intake_wizard(wz: dict):
                     st.error(s4.get("upload_error", "Could not extract text."))
 
         with col_paste:
+            st.info(
+                "📊 Quick Tip: To get an accurate compliance roadmap, clearly outline "
+                "your human verification gates. Avoid phrases like 'fully autonomous "
+                "decision making' if a human supervisor signs off on the final text "
+                "outputs."
+            )
             pasted_val = st.text_area(
                 s4.get("paste_label", "Or paste a description here"),
                 value=intake.get("description", ""),
                 height=160,
                 placeholder=s4.get("paste_placeholder", ""),
+                help=(
+                    "💡 Input Guidance: To ensure a precise risk assessment, clearly "
+                    "define if the tool acts as a human-verified suggestion or text "
+                    "optimization tool. Human-in-the-loop workflows default safely to "
+                    "Minimal Risk under the Act."
+                ),
             )
             intake["description"] = pasted_val
 
