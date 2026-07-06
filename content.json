@@ -85,7 +85,7 @@
       "title": "Post-Assessment Governance Workspace",
       "sub": "Your audit is complete — manage the report, obligations register, and regulatory deadlines below.",
       "tabs": ["Overview", "Obligations Sheet", "Regulatory Calendar"],
-      "save_button": "💾 Save Official Report directly to Downloads Folder",
+      "save_button": "Download Official Compliance Report (PDF)",
       "obligations_label": "Interactive Obligations Register",
       "obligations_sub": "Track each statutory duty to closure. Status choices and notes save instantly to your session workspace.",
       "calendar_label": "Regulatory Deadline Timeline",

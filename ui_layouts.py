@@ -42,7 +42,7 @@ from utils.annex_iv import (
     clarification_block,
 )
 from utils.knowledge import load_legal_knowledge_base, knowledge_base_inventory
-from utils.report_gen import generate_pdf_report, save_report_to_downloads
+from utils.report_gen import generate_pdf_report
 
 PRIMARY_MODEL = "gemini-2.5-flash"
 FALLBACK_MODEL = "gemini-2.0-flash"
@@ -1009,12 +1009,19 @@ def _render_command_center(cc: dict):
 
         st.markdown(st.session_state.report_markdown)
 
-        if st.button(cc.get("save_button", "💾 Save Report")):
-            ok, msg, _ = save_report_to_downloads(st.session_state.pdf_data_bytes)
-            if ok:
-                st.success(msg)
-            else:
-                st.error(msg)
+        pdf_bytes = st.session_state.get("pdf_data_bytes")
+        if pdf_bytes:
+            st.download_button(
+                label=cc.get(
+                    "save_button",
+                    "Download Official Compliance Report (PDF)",
+                ),
+                data=pdf_bytes,
+                file_name="EU_AI_Act_Audit_Report.pdf",
+                mime="application/pdf",
+                type="primary",
+                key="download_audit_report",
+            )
 
     # ── COMMAND CENTER TAB 2: Obligations Sheet ───────────────────────────────
     with cc_obligations:
