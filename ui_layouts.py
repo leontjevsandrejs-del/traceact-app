@@ -49,10 +49,13 @@ from utils.billing_ui import (
     intake_inputs_unlocked,
     is_sandbox_demo,
     sync_credit_count,
+    ensure_description_widget_state,
+    sync_description_to_intake,
+    render_intake_mode_selector,
     render_stripe_purchase_card,
     render_intake_access_status,
-    render_workspace_tile_open,
-    render_workspace_tile_close,
+    render_column_tile_header,
+    render_column_tile_footer,
     render_sandbox_preview_banner,
     SANDBOX_WATERMARK,
 )
@@ -614,15 +617,18 @@ def _render_intake_wizard(wz: dict):
         """, unsafe_allow_html=True)
 
         st.markdown('<div class="intake-card-shell">', unsafe_allow_html=True)
-        st.toggle("Activate Sandbox Demo Mode", key="sandbox_demo")
         sync_credit_count()
-        inputs_unlocked = intake_inputs_unlocked()
+        render_intake_mode_selector()
+        has_credits = st.session_state.get("credit_count", 0) > 0
+        sandbox_active = is_sandbox_demo()
+        inputs_unlocked = has_credits or sandbox_active
+        ensure_description_widget_state(intake.get("description", ""))
         render_intake_access_status()
 
-        col_upload, col_paste = st.columns(2, gap="large")
+        col_upload, col_paste = st.columns([1, 1], gap="large")
 
         with col_upload:
-            render_workspace_tile_open(
+            render_column_tile_header(
                 "Evidence Document",
                 "Upload technical documentation for Annex IV reconciliation.",
             )
@@ -632,7 +638,6 @@ def _render_intake_wizard(wz: dict):
                 key="wizard_uploader",
                 help=s4.get("upload_help", ""),
                 disabled=not inputs_unlocked,
-                label_visibility="visible",
             )
             if wizard_file is not None:
                 try:
@@ -650,37 +655,35 @@ def _render_intake_wizard(wz: dict):
                 except Exception:
                     intake["evidence_text"] = ""
                     st.error(s4.get("upload_error", "Could not extract text."))
-            render_workspace_tile_close()
+            render_column_tile_footer()
 
         with col_paste:
-            render_workspace_tile_open(
+            render_column_tile_header(
                 "System Description",
                 "Describe workflows, human oversight gates, and deployment scope.",
             )
             st.markdown(
                 '<div class="intake-tip"><strong>Quick Tip:</strong> Clearly outline '
-                "your human verification gates. Avoid phrases like "
-                "<strong>fully autonomous decision making</strong> if a human supervisor "
-                "signs off on the final text outputs.</div>",
+                "human verification gates. Avoid <strong>fully autonomous decision making</strong> "
+                "if a human supervisor signs off on final outputs.</div>",
                 unsafe_allow_html=True,
             )
-            pasted_val = st.text_area(
+            st.text_area(
                 s4.get("paste_label", "Or paste a product description / notes here"),
-                value=intake.get("description", ""),
                 height=200,
                 placeholder=s4.get("paste_placeholder", ""),
                 help=(
-                    "Input Guidance: Define whether the tool is a human-verified "
-                    "suggestion or text optimization aid. Human-in-the-loop workflows "
-                    "default safely to Minimal Risk under the Act."
+                    "Define whether the tool is a human-verified suggestion or text "
+                    "optimization aid. Human-in-the-loop workflows default safely to "
+                    "Minimal Risk under the Act."
                 ),
                 disabled=not inputs_unlocked,
                 key="wizard_description_area",
+                label_visibility="visible",
             )
-            if inputs_unlocked:
-                intake["description"] = pasted_val
-            render_workspace_tile_close()
+            render_column_tile_footer()
 
+        sync_description_to_intake(intake)
         st.markdown("</div>", unsafe_allow_html=True)
 
         if not inputs_unlocked:
@@ -1054,7 +1057,7 @@ def _run_audit_pipeline(client, intake: dict, assess: dict, sandbox_mode: bool =
             disclaimer_line=_c("legal", "disclaimer", "pdf_line"),
             legal_narrative=final_report_text,
             action_plan=action_plan_text,
-            sandbox_preview=sandbox_mode,
+            is_sandbox=sandbox_mode,
         )
         us_set("pdf_data_bytes", pdf_bytes)
         us_set("risk_tier", system_risk_status)

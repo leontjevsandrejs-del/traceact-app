@@ -79,15 +79,17 @@ class _AuditPDF(FPDF):
     def _stamp_sandbox_watermark(self) -> None:
         if not self.sandbox_preview:
             return
+        # FPDF2 equivalent of ReportLab canvas saveState / rotate / drawString.
         with self.local_context():
-            self.set_font("Helvetica", "B", 34)
+            self.set_font("Helvetica", "B", 24)
             self.set_text_color(210, 214, 220)
-            self.rotate(32, x=105, y=150)
-            self.text(18, 150, "SANDBOX PREVIEW")
+            self.rotate(42, x=105, y=150)
+            self.text(
+                4,
+                150,
+                "SANDBOX PREVIEW - NOT LEGAL COMPLIANCE EVIDENCE",
+            )
             self.rotate(0)
-            self.set_font("Helvetica", "B", 11)
-            self.set_text_color(220, 38, 38)
-            self.text(24, 248, "NOT LEGAL COMPLIANCE EVIDENCE")
 
     def header(self):
         self.set_draw_color(*_C_ACCENT)
@@ -397,21 +399,25 @@ def generate_pdf_report(final_report_text,
                         disclaimer_line=None,
                         legal_narrative=None,
                         action_plan=None,
-                        sandbox_preview: bool = False):
+                        sandbox_preview: bool = False,
+                        is_sandbox: bool = False):
     """
     Build the 4-tier conformity report.
 
     ``final_report_text`` (full agent markdown) is used as the narrative when
     the split ``legal_narrative`` / ``action_plan`` sections are not provided,
     preserving backward compatibility with the legacy single-blob flow.
+
+    ``is_sandbox`` / ``sandbox_preview`` overlay a diagonal watermark on every page.
     """
-    pdf = _AuditPDF(sandbox_preview=sandbox_preview)
+    sandbox = is_sandbox or sandbox_preview
+    pdf = _AuditPDF(sandbox_preview=sandbox)
     pdf.set_auto_page_break(auto=True, margin=20)
     pdf.set_margins(left=20, top=20, right=20)
     pdf.add_page()
 
     # ── Cover title ───────────────────────────────────────────────────────────
-    if sandbox_preview:
+    if sandbox:
         pdf.set_fill_color(220, 38, 38)
         pdf.set_text_color(*_C_WHITE)
         pdf.set_font("Helvetica", "B", 11)

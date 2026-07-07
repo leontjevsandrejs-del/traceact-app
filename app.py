@@ -287,6 +287,34 @@ div[data-testid="stButton"] > button[kind="primary"]:hover {
     margin: 0.75rem 0 1rem;
     box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
 }
+.intake-mode-shell {
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
+    margin-bottom: 0.85rem;
+}
+.intake-mode-heading {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #2563EB;
+    margin-bottom: 0.35rem;
+}
+.intake-mode-copy {
+    font-size: 0.82rem;
+    color: #64748B;
+    line-height: 1.5;
+    margin-bottom: 0.55rem;
+}
+.intake-col-tile {
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 0.95rem 1rem 0.15rem;
+    min-height: 300px;
+}
 .intake-workspace-tile {
     background: #F8FAFC;
     border: 1px solid #E2E8F0;
@@ -333,6 +361,10 @@ div[data-testid="stButton"] > button[kind="primary"]:hover {
     background: #ECFDF5;
     border-color: #A7F3D0;
 }
+.intake-status-paywall {
+    background: #F8FAFC;
+    border-color: #CBD5E1;
+}
 .intake-status-title {
     font-size: 0.72rem;
     font-weight: 700;
@@ -342,6 +374,7 @@ div[data-testid="stButton"] > button[kind="primary"]:hover {
 }
 .intake-status-warning .intake-status-title { color: #B45309; }
 .intake-status-success .intake-status-title { color: #047857; }
+.intake-status-paywall .intake-status-title { color: #334155; }
 .intake-status-body {
     font-size: 0.84rem;
     color: #334155;
