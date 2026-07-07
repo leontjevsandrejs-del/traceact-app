@@ -10,14 +10,41 @@ from __future__ import annotations
 
 import streamlit as st
 
+from utils.auth_session import (
+    AUTH_DISPLAY_NAME_KEY,
+    AUTH_STATUS_KEY,
+    AUTH_USERNAME_KEY,
+)
+
 _SESSION_ROOT = "_traceact_user_sessions"
-_AUTH_USERNAME_KEY = "auth_username"
+_TRACEACT_USERNAME_KEY = "auth_username"
 _AUTH_NAME_KEY = "auth_name"
 _AUTH_SESSION_ID_KEY = "auth_session_id"
 
 
+def is_authenticated_session() -> bool:
+    """True when streamlit-authenticator has an active login session."""
+    return st.session_state.get(AUTH_STATUS_KEY) is True
+
+
+def sync_auth_session() -> str:
+    """
+    Mirror streamlit-authenticator session keys into TraceAct's user scope.
+
+    Returns the active username, or an empty string when unauthenticated.
+    """
+    if not is_authenticated_session():
+        return ""
+    username = (st.session_state.get(AUTH_USERNAME_KEY) or "").strip()
+    if not username:
+        return st.session_state.get(_TRACEACT_USERNAME_KEY, "") or ""
+    display_name = st.session_state.get(AUTH_DISPLAY_NAME_KEY) or username
+    set_authenticated_user(username, display_name)
+    return username
+
+
 def set_authenticated_user(username: str, display_name: str) -> None:
-    st.session_state[_AUTH_USERNAME_KEY] = username
+    st.session_state[_TRACEACT_USERNAME_KEY] = username
     st.session_state[_AUTH_NAME_KEY] = display_name
     # Stable per-browser session pin for metadata isolation audits.
     st.session_state.setdefault(
@@ -27,7 +54,11 @@ def set_authenticated_user(username: str, display_name: str) -> None:
 
 
 def current_user_id() -> str:
-    return st.session_state.get(_AUTH_USERNAME_KEY, "") or ""
+    if is_authenticated_session():
+        synced = sync_auth_session()
+        if synced:
+            return synced
+    return st.session_state.get(_TRACEACT_USERNAME_KEY, "") or ""
 
 
 def current_session_id() -> str:
@@ -35,7 +66,7 @@ def current_session_id() -> str:
 
 
 def is_authenticated() -> bool:
-    return bool(current_user_id())
+    return is_authenticated_session() and bool(current_user_id())
 
 
 def _bucket() -> dict:

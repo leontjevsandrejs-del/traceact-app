@@ -32,7 +32,6 @@ st.set_page_config(
 # Halts the script before proprietary evaluation logic for anonymous viewers.
 enforce_authentication()
 sync_credit_count()
-render_enterprise_sidebar()
 
 
 def initialize_content() -> None:
@@ -71,6 +70,16 @@ html, body, [class*="css"] {
 /* ── Hide default Streamlit chrome ─────────────────────────────────────────── */
 #MainMenu, footer, header { visibility: hidden; }
 .block-container { padding-top: 1.5rem; padding-bottom: 2rem; max-width: 1200px; }
+
+/* ── Top navigation (st.navigation position=top) ───────────────────────────── */
+[data-testid="stNavigation"] {
+    margin-bottom: 0.75rem;
+}
+[data-testid="stNavigation"] a {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.825rem;
+    font-weight: 500;
+}
 
 /* ── Sidebar (navigation) ──────────────────────────────────────────────────── */
 [data-testid="stSidebar"] {
@@ -550,5 +559,6 @@ pages = [
     ),
 ]
 
-pg = st.navigation(pages)
+render_enterprise_sidebar()
+pg = st.navigation(pages, position="top")
 pg.run()

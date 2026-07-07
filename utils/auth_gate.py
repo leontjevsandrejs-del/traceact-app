@@ -22,7 +22,8 @@ from utils.credential_store import (
     sync_yaml_credentials_snapshot,
 )
 from utils.tenant_db import ensure_company_profile
-from utils.user_session import set_authenticated_user
+from utils.auth_session import AUTH_STATUS_KEY, AUTH_USERNAME_KEY
+from utils.user_session import sync_auth_session
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _AUTH_CONFIG_PATH = _PROJECT_ROOT / "config" / "auth_config.yaml"
@@ -194,10 +195,10 @@ def enforce_authentication() -> str:
     """
     authenticator = _get_authenticator()
 
-    if not st.session_state.get("authentication_status"):
+    if not st.session_state.get(AUTH_STATUS_KEY):
         authenticator.login(location="unrendered", key="TraceActSilentLogin")
 
-    if not st.session_state.get("authentication_status"):
+    if not st.session_state.get(AUTH_STATUS_KEY):
         _render_enterprise_login_shell()
         login_tab, register_tab = st.tabs(["Sign In", "Register Organisation"])
         with login_tab:
@@ -205,11 +206,10 @@ def enforce_authentication() -> str:
         with register_tab:
             _render_registration_form(authenticator)
 
-    username = st.session_state.get("username")
-    auth_status = st.session_state.get("authentication_status")
+    username = sync_auth_session() or st.session_state.get(AUTH_USERNAME_KEY)
+    auth_status = st.session_state.get(AUTH_STATUS_KEY)
 
     if auth_status and username:
-        set_authenticated_user(username, st.session_state.get("name") or username)
         ensure_company_profile(
             username,
             contact_email=st.session_state.get("email", ""),
