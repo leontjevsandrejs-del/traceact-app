@@ -27,10 +27,9 @@ st.set_page_config(
 )
 
 # ── LOGIN ISOLATION WALL (runs before any workspace chrome) ───────────────────
-from utils.auth_gate import authenticate_or_show_portal
+from utils.auth_gate import enforce_authentication
 
-if not authenticate_or_show_portal():
-    st.stop()
+enforce_authentication()
 
 # ── AUTHENTICATED APPLICATION SHELL ─────────────────────────────────────────
 # Proprietary evaluation modules load only after the login wall passes.

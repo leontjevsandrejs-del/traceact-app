@@ -344,10 +344,19 @@ def authenticate_or_show_portal() -> bool:
 
 def enforce_authentication() -> str:
     """
-    Back-compat wrapper — halts the script when unauthenticated.
+    Primary auth entrypoint for ``app.py``.
 
-    Prefer ``authenticate_or_show_portal()`` at the top of ``app.py``.
+    Renders the isolated login portal when unauthenticated and calls
+    ``st.stop()`` so no workspace modules execute.
     """
     if not authenticate_or_show_portal():
         st.stop()
     return sync_auth_session()
+
+
+__all__ = [
+    "authenticate_or_show_portal",
+    "enforce_authentication",
+    "get_sidebar_authenticator",
+    "render_isolated_login_portal",
+]
