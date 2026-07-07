@@ -11,18 +11,16 @@ from typing import Any
 import streamlit as st
 
 from utils.account_store import activate_account, normalize_email
-from utils.audit_archive import archive_purchased_audit
-from utils.draft_store import bind_draft_to_user, get_draft
-from utils.secure_session import establish_secure_cookie_session
-from utils.tenant_db import ensure_company_profile, add_audit_credits
-from utils.user_session import (
-    activate_workspace_user,
-    hydrate_workspace_from_snapshot,
+from utils.activation_state import (
+    clear_pending_activation,
     is_pending_activation,
     pending_activation,
     set_pending_activation,
-    clear_pending_activation,
 )
+from utils.audit_archive import archive_purchased_audit
+from utils.draft_store import bind_draft_to_user, get_draft
+from utils.secure_session import establish_secure_cookie_session
+from utils.tenant_db import add_audit_credits, ensure_company_profile
 
 PAYMENT_PARAM = "payment"
 DRAFT_ID_PARAM = "draft_id"
@@ -35,6 +33,12 @@ class StripeReturnPayload:
     draft_id: str
     email: str
     session_id: str | None = None
+
+
+def _user_session():
+    """Lazy import avoids Cloud import-order failures during deploy rollouts."""
+    from utils import user_session
+    return user_session
 
 
 def _inject_activation_css() -> None:
@@ -118,7 +122,7 @@ def _unlock_draft_assets(user_id: str, email: str, draft_id: str) -> bool:
     if not draft:
         return False
     snapshot: dict[str, Any] = draft.get("snapshot") or {}
-    hydrate_workspace_from_snapshot(snapshot)
+    _user_session().hydrate_workspace_from_snapshot(snapshot)
     bind_draft_to_user(draft_id, user_id, email)
     ensure_company_profile(user_id, contact_email=email)
     add_audit_credits(user_id, 1)
@@ -173,7 +177,7 @@ def render_account_activation_frame(email: str, draft_id: str) -> None:
             if not _unlock_draft_assets(user_id, email, draft_id):
                 st.error("Payment draft could not be located. Contact support.")
                 return
-            activate_workspace_user(user_id, email)
+            _user_session().activate_workspace_user(user_id, email)
             establish_secure_cookie_session(user_id, email)
             clear_pending_activation()
             st.query_params.clear()

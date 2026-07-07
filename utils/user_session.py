@@ -9,6 +9,13 @@ from __future__ import annotations
 
 import streamlit as st
 
+from utils.activation_state import (
+    clear_pending_activation,
+    is_pending_activation,
+    pending_activation,
+    set_pending_activation,
+)
+
 GUEST_USER_ID = "guest_auditor"
 GUEST_USER_EMAIL = "guest_auditor@traceact.eu"
 
@@ -16,7 +23,6 @@ _SESSION_ROOT = "_traceact_user_sessions"
 _TRACEACT_USERNAME_KEY = "auth_username"
 _TRACEACT_EMAIL_KEY = "traceact_user_email"
 _SESSION_ID_KEY = "traceact_session_id"
-_PENDING_ACTIVATION_KEY = "_traceact_pending_activation"
 
 
 def ensure_guest_session() -> str:
@@ -52,26 +58,6 @@ def is_activated_user() -> bool:
 def current_session_id() -> str:
     ensure_guest_session()
     return st.session_state.get(_SESSION_ID_KEY, GUEST_USER_ID)
-
-
-def set_pending_activation(email: str, draft_id: str) -> None:
-    st.session_state[_PENDING_ACTIVATION_KEY] = {
-        "email": email,
-        "draft_id": draft_id,
-    }
-
-
-def pending_activation() -> dict:
-    return st.session_state.get(_PENDING_ACTIVATION_KEY) or {}
-
-
-def clear_pending_activation() -> None:
-    st.session_state.pop(_PENDING_ACTIVATION_KEY, None)
-
-
-def is_pending_activation() -> bool:
-    pending = pending_activation()
-    return bool(pending.get("email") and pending.get("draft_id"))
 
 
 def hydrate_workspace_from_snapshot(snapshot: dict) -> None:
