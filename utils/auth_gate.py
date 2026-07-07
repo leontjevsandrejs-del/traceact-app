@@ -179,6 +179,11 @@ def _extract_live_credentials(authenticator: stauth.Authenticate) -> dict | None
     return None
 
 
+def get_sidebar_authenticator() -> stauth.Authenticate:
+    """Expose authenticator for sidebar logout (post-authentication only)."""
+    return _get_authenticator()
+
+
 def enforce_authentication() -> str:
     """
     Render login / registration and return the authenticated username.
@@ -220,13 +225,3 @@ def enforce_authentication() -> str:
     st.stop()
 
 
-def render_account_sidebar() -> None:
-    """Authenticated session controls in the sidebar."""
-    authenticator = _get_authenticator()
-    with st.sidebar:
-        st.markdown(f"**Signed in as:** {st.session_state.get('name', '')}")
-        authenticator.logout(
-            button_name="Sign Out",
-            location="sidebar",
-            key="TraceActLogout",
-        )

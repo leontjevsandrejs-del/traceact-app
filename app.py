@@ -13,8 +13,9 @@ import os
 import streamlit as st
 from dotenv import load_dotenv
 
-from utils.auth_gate import enforce_authentication, render_account_sidebar
-from utils.billing_ui import render_credit_banner
+from utils.auth_gate import enforce_authentication
+from utils.billing_ui import sync_credit_count
+from utils.sidebar_ui import render_enterprise_sidebar
 from ui_layouts import render_workspace_engine, render_legal_hub
 
 load_dotenv()
@@ -30,8 +31,8 @@ st.set_page_config(
 # ── ACCESS CONTROL GATE ───────────────────────────────────────────────────────
 # Halts the script before proprietary evaluation logic for anonymous viewers.
 enforce_authentication()
-render_account_sidebar()
-render_credit_banner()
+sync_credit_count()
+render_enterprise_sidebar()
 
 
 def initialize_content() -> None:
@@ -79,6 +80,55 @@ html, body, [class*="css"] {
 [data-testid="stSidebar"] * { color: #CBD5E1 !important; }
 [data-testid="stSidebar"] .stSuccess { background: #064E3B; border: 1px solid #059669; border-radius: 6px; }
 [data-testid="stSidebar"] .stError   { background: #7F1D1D; border: 1px solid #DC2626; border-radius: 6px; }
+[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 2rem);
+}
+.sidebar-account-card {
+    background: #1E293B;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 1rem 1.1rem;
+    margin-bottom: 1.25rem;
+}
+.sidebar-account-icon { font-size: 1.1rem; margin-bottom: 0.35rem; }
+.sidebar-account-company {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #F8FAFC !important;
+    line-height: 1.35;
+    margin-bottom: 0.25rem;
+}
+.sidebar-account-email {
+    font-size: 0.78rem;
+    color: #94A3B8 !important;
+    line-height: 1.45;
+}
+.sidebar-library-heading {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #93C5FD !important;
+    margin-bottom: 0.65rem;
+}
+.sidebar-library-empty {
+    font-size: 0.8rem;
+    color: #94A3B8 !important;
+    line-height: 1.55;
+    padding: 0.65rem 0.1rem 1rem;
+}
+.sidebar-logout-spacer {
+    flex: 1 1 auto;
+    min-height: 1.5rem;
+}
+[data-testid="stSidebar"] [data-testid="stExpander"] {
+    background: #1E293B;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    margin-bottom: 0.45rem;
+}
 
 /* ── Tab navigation bar ─────────────────────────────────────────────────────── */
 [data-testid="stTabs"] [role="tablist"] {

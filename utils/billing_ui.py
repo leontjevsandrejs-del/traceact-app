@@ -9,7 +9,7 @@ import os
 import streamlit as st
 import streamlit.components.v1 as components
 
-from utils.tenant_db import get_audit_credits, get_company_profile
+from utils.tenant_db import get_audit_credits
 from utils.user_session import current_user_id
 
 DESCRIPTION_WIDGET_KEY = "system_description_input"
@@ -23,7 +23,7 @@ def stripe_checkout_url() -> str:
 
 
 def sync_credit_count() -> int:
-    """Mirror tenant credits on ``st.session_state.credit_count`` for UI conditionals."""
+    """Mirror tenant credits on ``st.session_state.credit_count`` (no sidebar UI)."""
     uid = current_user_id()
     credits = get_audit_credits(uid) if uid else 0
     st.session_state["credit_count"] = credits
@@ -47,24 +47,8 @@ def sync_description_to_intake(intake: dict) -> None:
     intake["description"] = st.session_state.get(DESCRIPTION_WIDGET_KEY, "")
 
 
-def render_credit_banner() -> int:
-    """Sidebar credit meter. Returns remaining credits."""
-    credits = sync_credit_count()
-    uid = current_user_id()
-    if not uid:
-        return credits
-    profile = get_company_profile(uid)
-    company = profile.company_name if profile else uid
-    st.sidebar.markdown("### Enterprise Account")
-    st.sidebar.markdown(f"**Organisation:** {company}")
-    st.sidebar.metric("Audit Credits Remaining", credits)
-    return credits
-
-
 def render_certified_report_paywall() -> None:
-    """
-    Single purchase gate for the Conformity Assessment tab (zero credits).
-    """
+    """Single purchase gate for the Conformity Assessment tab (zero credits)."""
     st.markdown(
         """
         <div class="certified-report-lock">
