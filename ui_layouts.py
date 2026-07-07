@@ -46,15 +46,10 @@ from utils.report_gen import generate_pdf_report
 from utils.user_session import us_get, us_set, us_pop, us_contains, current_user_id
 from utils.tenant_db import deduct_audit_credit
 from utils.billing_ui import (
-    has_audit_credits,
     sync_credit_count,
     ensure_description_widget_state,
     sync_description_to_intake,
-    render_intake_onboarding_tip,
-    render_stripe_purchase_card,
-    render_full_audit_locked_notice,
-    render_column_tile_header,
-    render_column_tile_footer,
+    render_certified_report_paywall,
     DESCRIPTION_WIDGET_KEY,
 )
 
@@ -461,54 +456,23 @@ def _process_step4_upload(wizard_file, intake: dict, s4: dict) -> None:
         st.error(s4.get("upload_error", "Could not extract text."))
 
 
-def _render_light_preview_results(s4: dict) -> None:
-    preview = us_get("light_preview")
-    if not preview:
-        return
-    st.markdown(
-        '<div class="section-label" style="margin-top:0.75rem;">Light Preview Results</div>',
-        unsafe_allow_html=True,
-    )
-    st.metric(
-        label=s4.get("preview_metric", "Preliminary Risk Tier"),
-        value=preview.get("tier", "—"),
-    )
-    st.markdown(f"**Primary Citation:** {preview.get('citation', '—')}")
-    st.caption(
-        "Deterministic preliminary scan only. Annex IV gap analysis, multi-agent "
-        "compliance matrices, and certified PDF reports require an audit credit."
-    )
-    pathway = preview.get("decision_path") or []
-    if pathway:
-        with st.expander(s4.get("pathway_label", "View the statutory decision pathway")):
-            for step_line in pathway:
-                st.markdown(f"- {step_line}")
-
-
 def _render_step4_intake_workspace(s4: dict, intake: dict, wz: dict) -> None:
     st.markdown(f"""
     <div class="section-label" style="margin-bottom:0.6rem;">{s4.get("label", "")}</div>
     <div class="section-sub">{s4.get("sub", "")}</div>
     """, unsafe_allow_html=True)
 
-    sync_credit_count()
-    has_credits = st.session_state.get("credit_count", 0) > 0
     ensure_description_widget_state(intake.get("description", ""))
 
-    # ── SECTION A: Intake Data ───────────────────────────────────────────────
-    st.markdown(
-        '<div class="intake-section-label">Section A — Intake Data</div>',
-        unsafe_allow_html=True,
+    st.info(
+        "Quick Tip: To get an accurate compliance roadmap, clearly outline your human "
+        "verification gates. Avoid phrases like 'fully autonomous decision making' if a "
+        "human supervisor signs off on the final text outputs."
     )
-    render_intake_onboarding_tip()
 
     col_upload, col_paste = st.columns([1, 1], gap="large")
 
     with col_upload:
-        render_column_tile_header(
-            "Evidence Document",
-            "Upload technical documentation for Annex IV reconciliation.",
-        )
         wizard_file = st.file_uploader(
             s4.get("upload_label", "Drop a file (TXT or PDF)"),
             type=["txt", "pdf"],
@@ -516,13 +480,8 @@ def _render_step4_intake_workspace(s4: dict, intake: dict, wz: dict) -> None:
             help=s4.get("upload_help", ""),
         )
         _process_step4_upload(wizard_file, intake, s4)
-        render_column_tile_footer()
 
     with col_paste:
-        render_column_tile_header(
-            "System Description",
-            "Describe workflows, human oversight gates, and deployment scope.",
-        )
         st.text_area(
             s4.get("paste_label", "Or paste a product description / notes here"),
             height=200,
@@ -533,49 +492,38 @@ def _render_step4_intake_workspace(s4: dict, intake: dict, wz: dict) -> None:
                 "Minimal Risk under the Act."
             ),
             key=DESCRIPTION_WIDGET_KEY,
-            label_visibility="visible",
         )
-        render_column_tile_footer()
 
     sync_description_to_intake(intake)
 
-    # ── SECTION B: Conversion Trigger ────────────────────────────────────────
+    preview = classify_risk(intake)
     st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
     st.markdown(
-        '<div class="intake-section-label">Section B — Preliminary Scan</div>',
+        f'<div class="section-label" style="margin-bottom:0.6rem;">{s4.get("summary_label", "")}</div>',
         unsafe_allow_html=True,
     )
 
-    if has_credits:
-        st.info(
-            "You have audit credits available. Use the **Conformity Assessment** tab "
-            "to run the full multi-agent audit and download your certified PDF report."
-        )
-    elif st.button("Run Free Preliminary Scan", type="primary", key="light_preview_scan"):
-        if not intake.get("industry"):
-            st.error("Complete Steps 1–3 of the wizard before running a preliminary scan.")
-        else:
-            preview = classify_risk(intake)
-            us_set(
-                "light_preview",
-                {
-                    "tier": preview.tier,
-                    "citation": preview.citation,
-                    "decision_path": list(preview.decision_path),
-                },
-            )
-            st.rerun()
-
-    _render_light_preview_results(s4)
-
-    # ── SECTION C: Premium Paywall Gate ──────────────────────────────────────
-    if not has_credits:
-        st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
+    sum_col1, sum_col2 = st.columns([1, 1], gap="large")
+    with sum_col1:
         st.markdown(
-            '<div class="intake-section-label">Section C — Unlock Full Audit</div>',
-            unsafe_allow_html=True,
+            f"**Industry Sector:** {intake.get('industry', '—')}  \n"
+            f"**Value-Chain Role:** {intake.get('role', '—')}  \n"
+            f"**Biometric Footprint:** {intake.get('biometric', '—')}  \n"
+            f"**Profiling / Policing:** {intake.get('policing', '—')}"
         )
-        render_stripe_purchase_card(context="system description & evidence intake")
+    with sum_col2:
+        st.markdown(
+            f"**Training Data Source:** {intake.get('data_source', '—')}  \n"
+            f"**Operational Scope:** {intake.get('audience', '—')}  \n"
+            f"**Human Oversight:** {intake.get('oversight', '—')}"
+        )
+
+    st.metric(label=s4.get("preview_metric", "Preliminary Risk Tier"), value=preview.tier)
+    st.markdown(f"**Primary Citation:** {preview.citation}")
+
+    with st.expander(s4.get("pathway_label", "View the statutory decision pathway")):
+        for step_line in preview.decision_path:
+            st.markdown(f"- {step_line}")
 
     col_back, col_done = st.columns([1, 5])
     with col_back:
@@ -767,9 +715,6 @@ def _render_evidence_vault(ev: dict):
     )
     if extra_file:
         st.success(ev.get("upload_success", "Document cached."))
-    if not has_audit_credits():
-        render_full_audit_locked_notice()
-        render_stripe_purchase_card(context="evidence vault")
 
 
 def _render_conformity_assessment(assess: dict, cc: dict):
@@ -784,11 +729,16 @@ def _render_conformity_assessment(assess: dict, cc: dict):
         us_set("pdf_data_bytes", None)
 
     sync_credit_count()
+    audit_complete = us_get("audit_complete")
+    has_credits = st.session_state.get("credit_count", 0) > 0
 
-    if not has_audit_credits():
-        render_full_audit_locked_notice()
-        render_stripe_purchase_card(context="conformity assessment")
-    elif st.button(assess.get("run_button", "Run Compliance Audit"), type="primary"):
+    if not has_credits and not audit_complete:
+        render_certified_report_paywall()
+        return
+
+    if not audit_complete and st.button(
+        assess.get("run_button", "Run Compliance Audit"), type="primary"
+    ):
         us_set("audit_complete", False)
         us_set("report_markdown", "")
         us_set("pdf_data_bytes", None)
@@ -802,7 +752,7 @@ def _render_conformity_assessment(assess: dict, cc: dict):
         else:
             _run_audit_pipeline(client, intake, assess)
 
-    if us_get("audit_complete"):
+    if audit_complete:
         _render_command_center(cc)
 
 

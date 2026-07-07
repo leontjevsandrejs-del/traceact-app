@@ -1,5 +1,5 @@
 """
-Paywall UI helpers — Stripe checkout, credit gating, and Light Preview Mode.
+Paywall UI helpers — credit sync and the single Conformity Assessment gate.
 """
 
 from __future__ import annotations
@@ -7,11 +7,19 @@ from __future__ import annotations
 import os
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from utils.tenant_db import get_audit_credits, get_company_profile
 from utils.user_session import current_user_id
 
 DESCRIPTION_WIDGET_KEY = "system_description_input"
+
+
+def stripe_checkout_url() -> str:
+    return os.getenv(
+        "STRIPE_CHECKOUT_URL",
+        "https://buy.stripe.com/test_traceact_audit_credits",
+    )
 
 
 def sync_credit_count() -> int:
@@ -27,12 +35,7 @@ def has_audit_credits() -> bool:
 
 
 def ensure_description_widget_state(fallback: str = "") -> None:
-    """
-    Initialise the Step 4 description widget once with a stable session key.
-
-    Avoids passing ``value=`` on every rerun, which fights the widget ``key``
-    and causes focus loss while typing.
-    """
+    """Initialise the Step 4 description widget once (prevents focus-loss on typing)."""
     if DESCRIPTION_WIDGET_KEY not in st.session_state:
         legacy = st.session_state.get("wizard_description_area")
         st.session_state[DESCRIPTION_WIDGET_KEY] = (
@@ -45,7 +48,7 @@ def sync_description_to_intake(intake: dict) -> None:
 
 
 def render_credit_banner() -> int:
-    """Sidebar/header credit meter. Returns remaining credits."""
+    """Sidebar credit meter. Returns remaining credits."""
     credits = sync_credit_count()
     uid = current_user_id()
     if not uid:
@@ -58,115 +61,28 @@ def render_credit_banner() -> int:
     return credits
 
 
-def render_intake_onboarding_tip() -> None:
+def render_certified_report_paywall() -> None:
+    """
+    Single purchase gate for the Conformity Assessment tab (zero credits).
+    """
     st.markdown(
         """
-        <div class="intake-tip intake-tip-banner">
-          <strong>Quick Tip:</strong> Clearly outline your human verification gates.
-          Avoid <strong>fully autonomous decision making</strong> if a human supervisor
-          signs off on final outputs — this helps our preliminary classifier surface
-          accurate risk tiers.
+        <div class="certified-report-lock">
+          🔒 <strong>Certified Compliance Report Locked.</strong>
+          Your account has no remaining audit credits.
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-
-def render_column_tile_header(title: str, subtitle: str) -> None:
-    st.markdown(
-        f"""
-        <div class="intake-col-tile">
-          <div class="intake-tile-label">{title}</div>
-          <div class="intake-tile-sub">{subtitle}</div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def render_column_tile_footer() -> None:
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
-def render_stripe_purchase_card(context: str = "audit") -> None:
-    """Premium paywall product table + Stripe checkout CTA."""
-    checkout_url = os.getenv(
-        "STRIPE_CHECKOUT_URL",
-        "https://buy.stripe.com/test_traceact_audit_credits",
-    )
-    st.markdown(
-        """
-        <div class="stripe-dashboard-card">
-          <div class="stripe-section-label">Premium Compliance Package</div>
-          <table class="stripe-dashboard-table">
-            <thead>
-              <tr>
-                <th>Capability</th>
-                <th>Light Preview (Free)</th>
-                <th>Certified Audit (1 Credit)</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><strong>Preliminary risk tier scan</strong></td>
-                <td>Included</td>
-                <td>Included</td>
-              </tr>
-              <tr>
-                <td><strong>Annex IV gap analysis matrix</strong></td>
-                <td>Locked</td>
-                <td>Included</td>
-              </tr>
-              <tr>
-                <td><strong>Multi-agent compliance breach review</strong></td>
-                <td>Locked</td>
-                <td>Included</td>
-              </tr>
-              <tr>
-                <td><strong>Download certified PDF report</strong></td>
-                <td>Locked</td>
-                <td>Included</td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="stripe-card-foot">
-            Purchase one audit credit below to unlock the full conformity pipeline and
-            official PDF evidence pack.
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.link_button(
-        "Purchase Audit Credits via Stripe",
-        checkout_url,
+    if st.button(
+        "💳 Buy Certified Audit Report — €79",
         type="primary",
         use_container_width=True,
-        help="Secure checkout powered by Stripe. Credits are applied to your company profile after payment.",
-    )
-    st.caption(f"Context: {context}")
-
-
-def render_full_audit_locked_notice() -> None:
-    st.markdown(
-        """
-        <div class="intake-status-card intake-status-paywall">
-          <div class="intake-status-title">Full Audit Locked</div>
-          <div class="intake-status-body">
-            <strong>Annex IV gap analysis</strong>, the <strong>multi-agent compliance
-            breach matrices</strong>, and <strong>certified PDF download</strong> require
-            an audit credit. Run the free preliminary scan above, then purchase a credit
-            <strong>below</strong> to unlock production-grade evidence.
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-# Backward-compatible aliases.
-def render_stripe_paywall(context: str = "audit") -> None:
-    render_stripe_purchase_card(context)
-
-
-def render_locked_description_notice() -> None:
-    render_full_audit_locked_notice()
+        key="buy_certified_audit_report",
+    ):
+        checkout = stripe_checkout_url()
+        components.html(
+            f'<script>window.top.location.href = "{checkout}";</script>',
+            height=0,
+        )

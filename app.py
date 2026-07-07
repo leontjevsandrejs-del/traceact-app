@@ -436,6 +436,17 @@ div[data-testid="stButton"] > button[kind="primary"]:hover {
     color: #64748B;
     padding: 0.55rem 0.9rem 0;
 }
+.certified-report-lock {
+    background: #F8FAFC;
+    border: 1px solid #CBD5E1;
+    border-left: 4px solid #2563EB;
+    border-radius: 10px;
+    padding: 1rem 1.15rem;
+    margin: 1rem 0;
+    font-size: 0.92rem;
+    color: #334155;
+    line-height: 1.55;
+}
 .sandbox-preview-banner {
     background: #FEF2F2;
     border: 1px solid #FECACA;
