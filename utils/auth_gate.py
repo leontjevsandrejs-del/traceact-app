@@ -15,6 +15,11 @@ import streamlit as st
 import streamlit_authenticator as stauth
 import yaml
 
+from utils.credential_store import (
+    load_merged_credentials,
+    register_runtime_user,
+    sync_yaml_credentials_snapshot,
+)
 from utils.tenant_db import ensure_company_profile
 from utils.user_session import set_authenticated_user
 
@@ -34,25 +39,11 @@ def _load_auth_config() -> dict:
         return {}
 
 
-def _save_auth_config(cfg: dict) -> bool:
-    """Best-effort credential persistence (works locally; Cloud FS may be read-only)."""
-    if not _AUTH_CONFIG_PATH.is_file():
-        return False
-    try:
-        with open(_AUTH_CONFIG_PATH, "w", encoding="utf-8") as fh:
-            yaml.safe_dump(cfg, fh, default_flow_style=False, allow_unicode=True)
-        return True
-    except OSError:
-        return False
-
-
 def _build_authenticator() -> stauth.Authenticate:
     cfg = _load_auth_config()
     cookie = cfg.get("cookie", {})
-    # Dict-backed credentials (not a yaml path) so open registration is never
-    # overridden by streamlit-authenticator's file-level pre-authorized list.
     return stauth.Authenticate(
-        cfg.get("credentials", {}),
+        load_merged_credentials(),
         cookie_name=cookie.get("name", "traceact_auth"),
         cookie_key=os.getenv(
             "AUTH_COOKIE_KEY",
@@ -63,13 +54,11 @@ def _build_authenticator() -> stauth.Authenticate:
     )
 
 
-def _registration_preauthorized():
-    """
-    Control who may self-register.
+def _reset_authenticator_cache() -> None:
+    st.session_state.pop(_AUTH_STATE_KEY, None)
 
-    Default: open registration (``_OPEN_REGISTRATION`` sentinel).
-    Set ``AUTH_INVITE_ONLY=true`` to restrict to emails in auth_config.yaml.
-    """
+
+def _registration_preauthorized():
     if os.getenv("AUTH_INVITE_ONLY", "").lower() not in ("1", "true", "yes"):
         return _OPEN_REGISTRATION
     cfg = _load_auth_config()
@@ -80,13 +69,6 @@ def _registration_preauthorized():
 
 
 def _register_user(authenticator: stauth.Authenticate, **kwargs):
-    """
-    Register via streamlit-authenticator without accidental invite-only gating.
-
-    The upstream library treats any list (including from yaml) as invite-only.
-    We route open registration through the controller with ``pre_authorized=None``
-    and no config-file path attached to the credentials object.
-    """
     policy = _registration_preauthorized()
     pre_authorized = None if policy is _OPEN_REGISTRATION else policy
     return authenticator.authentication_controller.register_user(
@@ -104,34 +86,6 @@ def _register_user(authenticator: stauth.Authenticate, **kwargs):
         kwargs.get("captcha", False),
         kwargs.get("entered_captcha"),
     )
-
-
-def _extract_live_credentials(authenticator: stauth.Authenticate) -> dict | None:
-    """Read the mutable credential store from streamlit-authenticator (version-tolerant)."""
-    controller = getattr(authenticator, "authentication_controller", None)
-    if controller is None:
-        return None
-    if hasattr(controller, "credentials"):
-        return controller.credentials
-    model = getattr(controller, "authentication_model", None)
-    if model is not None and hasattr(model, "credentials"):
-        return model.credentials
-    return None
-
-
-def _persist_credentials_snapshot() -> None:
-    """Best-effort yaml sync; never block registration if Cloud FS is read-only."""
-    try:
-        authenticator = _get_authenticator()
-        credentials = _extract_live_credentials(authenticator)
-        if not credentials:
-            return
-        cfg = _load_auth_config()
-        cfg["credentials"] = credentials
-        cfg.pop("preauthorized", None)
-        _save_auth_config(cfg)
-    except Exception:
-        return
 
 
 def _get_authenticator() -> stauth.Authenticate:
@@ -163,7 +117,6 @@ def _render_enterprise_login_shell() -> None:
 
 
 def _render_registration_form(authenticator: stauth.Authenticate) -> None:
-    """Open-registration form that bypasses invite-only yaml defaults."""
     with st.form("TraceActRegister", clear_on_submit=False):
         st.subheader("Register Organisation")
         col1, col2 = st.columns(2)
@@ -196,12 +149,34 @@ def _render_registration_form(authenticator: stauth.Authenticate) -> None:
         return
 
     if registered_email and registered_user:
-        ensure_company_profile(registered_user, contact_email=registered_email)
-        _persist_credentials_snapshot()
+        saved_user = register_runtime_user(
+            registered_user,
+            registered_email,
+            registered_name,
+            password,
+            password_hint=password_hint,
+        )
+        creds = _extract_live_credentials(authenticator)
+        if creds:
+            sync_yaml_credentials_snapshot(creds)
+        _reset_authenticator_cache()
+        ensure_company_profile(saved_user, contact_email=registered_email)
         st.success(
             f"Organisation registered for **{registered_name}**. "
-            "Sign in on the **Sign In** tab with your new credentials."
+            f"Sign in with username **`{saved_user}`** on the **Sign In** tab."
         )
+
+
+def _extract_live_credentials(authenticator: stauth.Authenticate) -> dict | None:
+    controller = getattr(authenticator, "authentication_controller", None)
+    if controller is None:
+        return None
+    if hasattr(controller, "credentials"):
+        return controller.credentials
+    model = getattr(controller, "authentication_model", None)
+    if model is not None and hasattr(model, "credentials"):
+        return model.credentials
+    return None
 
 
 def enforce_authentication() -> str:
@@ -213,7 +188,6 @@ def enforce_authentication() -> str:
     """
     authenticator = _get_authenticator()
 
-    # Restore cookie sessions without rendering the login form.
     if not st.session_state.get("authentication_status"):
         authenticator.login(location="unrendered", key="TraceActSilentLogin")
 
@@ -237,7 +211,10 @@ def enforce_authentication() -> str:
         return username
 
     if auth_status is False:
-        st.error("Invalid username or password.")
+        st.error(
+            "Invalid username or password. Usernames are stored in lowercase — "
+            "try again or re-register if this is a new deployment."
+        )
     else:
         st.warning("Please sign in or register to access the compliance workspace.")
     st.stop()

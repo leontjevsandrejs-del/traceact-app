@@ -39,6 +39,7 @@ project_datas = [
     (str(project_root / ".streamlit"),        ".streamlit"),
     (str(project_root / ".env"),              "."),
     (str(project_root / "config"),            "config"),
+    (str(project_root / "data"),               "data"),
     (str(project_root / "utils"),             "utils"),
     (str(project_root / "knowledge_base"),    "knowledge_base"),
 ]
