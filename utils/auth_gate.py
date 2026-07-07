@@ -106,12 +106,32 @@ def _register_user(authenticator: stauth.Authenticate, **kwargs):
     )
 
 
+def _extract_live_credentials(authenticator: stauth.Authenticate) -> dict | None:
+    """Read the mutable credential store from streamlit-authenticator (version-tolerant)."""
+    controller = getattr(authenticator, "authentication_controller", None)
+    if controller is None:
+        return None
+    if hasattr(controller, "credentials"):
+        return controller.credentials
+    model = getattr(controller, "authentication_model", None)
+    if model is not None and hasattr(model, "credentials"):
+        return model.credentials
+    return None
+
+
 def _persist_credentials_snapshot() -> None:
-    authenticator = _get_authenticator()
-    cfg = _load_auth_config()
-    cfg["credentials"] = authenticator.authentication_controller.credentials
-    cfg.pop("preauthorized", None)
-    _save_auth_config(cfg)
+    """Best-effort yaml sync; never block registration if Cloud FS is read-only."""
+    try:
+        authenticator = _get_authenticator()
+        credentials = _extract_live_credentials(authenticator)
+        if not credentials:
+            return
+        cfg = _load_auth_config()
+        cfg["credentials"] = credentials
+        cfg.pop("preauthorized", None)
+        _save_auth_config(cfg)
+    except Exception:
+        return
 
 
 def _get_authenticator() -> stauth.Authenticate:
