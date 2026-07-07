@@ -46,9 +46,15 @@ from utils.report_gen import generate_pdf_report
 from utils.user_session import us_get, us_set, us_pop, us_contains, current_user_id
 from utils.tenant_db import deduct_audit_credit
 from utils.billing_ui import (
-    has_audit_credits,
-    render_stripe_paywall,
-    render_locked_description_notice,
+    intake_inputs_unlocked,
+    is_sandbox_demo,
+    sync_credit_count,
+    render_stripe_purchase_card,
+    render_intake_access_status,
+    render_workspace_tile_open,
+    render_workspace_tile_close,
+    render_sandbox_preview_banner,
+    SANDBOX_WATERMARK,
 )
 
 PRIMARY_MODEL = "gemini-2.5-flash"
@@ -607,19 +613,26 @@ def _render_intake_wizard(wz: dict):
         <div class="section-sub">{s4.get("sub", "")}</div>
         """, unsafe_allow_html=True)
 
-        col_upload, col_paste = st.columns([1, 1], gap="large")
-        credits_ok = has_audit_credits()
-        if not credits_ok:
-            render_locked_description_notice()
-            render_stripe_paywall(context="system description & evidence intake")
+        st.markdown('<div class="intake-card-shell">', unsafe_allow_html=True)
+        st.toggle("Activate Sandbox Demo Mode", key="sandbox_demo")
+        sync_credit_count()
+        inputs_unlocked = intake_inputs_unlocked()
+        render_intake_access_status()
+
+        col_upload, col_paste = st.columns(2, gap="large")
 
         with col_upload:
+            render_workspace_tile_open(
+                "Evidence Document",
+                "Upload technical documentation for Annex IV reconciliation.",
+            )
             wizard_file = st.file_uploader(
                 s4.get("upload_label", "Drop a file (TXT or PDF)"),
                 type=["txt", "pdf"],
                 key="wizard_uploader",
                 help=s4.get("upload_help", ""),
-                disabled=not credits_ok,
+                disabled=not inputs_unlocked,
+                label_visibility="visible",
             )
             if wizard_file is not None:
                 try:
@@ -637,29 +650,41 @@ def _render_intake_wizard(wz: dict):
                 except Exception:
                     intake["evidence_text"] = ""
                     st.error(s4.get("upload_error", "Could not extract text."))
+            render_workspace_tile_close()
 
         with col_paste:
-            st.info(
-                "📊 Quick Tip: To get an accurate compliance roadmap, clearly outline "
-                "your human verification gates. Avoid phrases like 'fully autonomous "
-                "decision making' if a human supervisor signs off on the final text "
-                "outputs."
+            render_workspace_tile_open(
+                "System Description",
+                "Describe workflows, human oversight gates, and deployment scope.",
+            )
+            st.markdown(
+                '<div class="intake-tip"><strong>Quick Tip:</strong> Clearly outline '
+                "your human verification gates. Avoid phrases like "
+                "<strong>fully autonomous decision making</strong> if a human supervisor "
+                "signs off on the final text outputs.</div>",
+                unsafe_allow_html=True,
             )
             pasted_val = st.text_area(
-                s4.get("paste_label", "Or paste a description here"),
+                s4.get("paste_label", "Or paste a product description / notes here"),
                 value=intake.get("description", ""),
-                height=160,
+                height=200,
                 placeholder=s4.get("paste_placeholder", ""),
                 help=(
-                    "💡 Input Guidance: To ensure a precise risk assessment, clearly "
-                    "define if the tool acts as a human-verified suggestion or text "
-                    "optimization tool. Human-in-the-loop workflows default safely to "
-                    "Minimal Risk under the Act."
+                    "Input Guidance: Define whether the tool is a human-verified "
+                    "suggestion or text optimization aid. Human-in-the-loop workflows "
+                    "default safely to Minimal Risk under the Act."
                 ),
-                disabled=not credits_ok,
+                disabled=not inputs_unlocked,
+                key="wizard_description_area",
             )
-            if credits_ok:
+            if inputs_unlocked:
                 intake["description"] = pasted_val
+            render_workspace_tile_close()
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        if not inputs_unlocked:
+            render_stripe_purchase_card(context="system description & evidence intake")
 
         # ── Live classification preview (deterministic statutory cascade) ─────
         preview = classify_risk(intake)
@@ -707,15 +732,15 @@ def _render_intake_wizard(wz: dict):
 
 def _render_evidence_vault(ev: dict):
     _section_header(ev.get("label", ""), ev.get("title", ""), ev.get("sub", ""))
-    credits_ok = has_audit_credits()
-    if not credits_ok:
-        render_locked_description_notice()
-        render_stripe_paywall(context="evidence vault")
+    inputs_unlocked = intake_inputs_unlocked()
+    if not inputs_unlocked:
+        render_intake_access_status()
+        render_stripe_purchase_card(context="evidence vault")
     extra_file = st.file_uploader(
         ev.get("upload_label", "Upload additional documentation (TXT / PDF)"),
         type=["txt", "pdf"],
         key="tab2_uploader",
-        disabled=not credits_ok,
+        disabled=not inputs_unlocked,
     )
     if extra_file:
         st.success(ev.get("upload_success", "Document cached."))
@@ -732,27 +757,41 @@ def _render_conformity_assessment(assess: dict, cc: dict):
     if not us_contains("pdf_data_bytes"):
         us_set("pdf_data_bytes", None)
 
-    if not has_audit_credits():
-        render_stripe_paywall(context="conformity assessment")
-    elif st.button(assess.get("run_button", "Run Compliance Audit"), type="primary"):
-        us_set("audit_complete", False)
-        us_set("report_markdown", "")
-        us_set("pdf_data_bytes", None)
+    sync_credit_count()
+    sandbox_mode = is_sandbox_demo()
+    inputs_unlocked = intake_inputs_unlocked()
 
-        client = get_gemini_client()
-        intake = us_get("intake", {})
-        if client is None:
-            st.error(assess.get("missing_key_error", "Missing GEMINI_API_KEY."))
-        elif not intake.get("industry"):
-            st.error(assess.get("missing_intake_error", "Complete the wizard first."))
-        else:
-            _run_audit_pipeline(client, intake, assess)
+    if sandbox_mode:
+        render_intake_access_status()
+
+    if not inputs_unlocked:
+        render_stripe_purchase_card(context="conformity assessment")
+    else:
+        run_label = (
+            "Run Free Preview Audit"
+            if sandbox_mode
+            else assess.get("run_button", "Run Compliance Audit")
+        )
+        if st.button(run_label, type="primary"):
+            us_set("audit_complete", False)
+            us_set("report_markdown", "")
+            us_set("pdf_data_bytes", None)
+            us_set("sandbox_audit", sandbox_mode)
+
+            client = get_gemini_client()
+            intake = us_get("intake", {})
+            if client is None:
+                st.error(assess.get("missing_key_error", "Missing GEMINI_API_KEY."))
+            elif not intake.get("industry"):
+                st.error(assess.get("missing_intake_error", "Complete the wizard first."))
+            else:
+                _run_audit_pipeline(client, intake, assess, sandbox_mode=sandbox_mode)
 
     if us_get("audit_complete"):
         _render_command_center(cc)
 
 
-def _run_audit_pipeline(client, intake: dict, assess: dict):
+def _run_audit_pipeline(client, intake: dict, assess: dict, sandbox_mode: bool = False):
     """
     Deterministic-first audit pipeline:
 
@@ -993,10 +1032,17 @@ def _run_audit_pipeline(client, intake: dict, assess: dict):
 
     if final_report_text and action_plan_text:
         pathway_md = "\n".join(f"1. {s}" for s in classification.decision_path)
-        us_set("report_markdown", (
+        report_body = (
             f"### Statutory Decision Pathway (deterministic)\n{pathway_md}\n\n"
             f"{final_report_text}\n\n## Engineering Action Plan\n{action_plan_text}"
-        ))
+        )
+        if sandbox_mode:
+            report_body = (
+                f"> **{SANDBOX_WATERMARK}**\n\n"
+                f"This preview was generated in Sandbox Demo Mode and must not be "
+                f"used as regulatory evidence.\n\n{report_body}"
+            )
+        us_set("report_markdown", report_body)
         pdf_bytes = generate_pdf_report(
             final_report_text,
             classification=classification,
@@ -1008,12 +1054,19 @@ def _run_audit_pipeline(client, intake: dict, assess: dict):
             disclaimer_line=_c("legal", "disclaimer", "pdf_line"),
             legal_narrative=final_report_text,
             action_plan=action_plan_text,
+            sandbox_preview=sandbox_mode,
         )
         us_set("pdf_data_bytes", pdf_bytes)
         us_set("risk_tier", system_risk_status)
         us_set("risk_citation", risk_citation)
         us_set("audit_date", date.today().isoformat())
+        us_set("sandbox_audit", sandbox_mode)
         us_pop("obligations_df", None)
+
+        if sandbox_mode:
+            us_set("audit_complete", True)
+            st.rerun()
+            return
 
         uid = current_user_id()
         if uid and not deduct_audit_credit(uid, 1):
@@ -1044,6 +1097,9 @@ def _render_command_center(cc: dict):
 
     # ── COMMAND CENTER TAB 1: Overview ────────────────────────────────────────
     with cc_overview:
+        if us_get("sandbox_audit"):
+            render_sandbox_preview_banner()
+
         ov1, ov2, ov3 = st.columns(3)
         ov1.metric("EU AI Act Risk Tier", tier_done.split(" (")[0])
         ov2.metric("Primary Citation", citation_done)
@@ -1053,11 +1109,14 @@ def _render_command_center(cc: dict):
 
         pdf_bytes = us_get("pdf_data_bytes")
         if pdf_bytes:
+            download_label = cc.get(
+                "save_button",
+                "Download Official Compliance Report (PDF)",
+            )
+            if us_get("sandbox_audit"):
+                download_label = "Download Sandbox Preview Report (PDF)"
             st.download_button(
-                label=cc.get(
-                    "save_button",
-                    "Download Official Compliance Report (PDF)",
-                ),
+                label=download_label,
                 data=pdf_bytes,
                 file_name="EU_AI_Act_Audit_Report.pdf",
                 mime="application/pdf",

@@ -277,6 +277,124 @@ div[data-testid="stButton"] > button[kind="primary"]:hover {
     box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
     outline: none;
 }
+
+/* ── Step 4 intake workspace (premium B2B tiles) ─────────────────────────── */
+.intake-card-shell {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 14px;
+    padding: 1.15rem 1.25rem 0.35rem;
+    margin: 0.75rem 0 1rem;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+}
+.intake-workspace-tile {
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 0.95rem 1rem 0.35rem;
+    min-height: 280px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
+}
+.intake-tile-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #2563EB;
+    margin-bottom: 0.2rem;
+}
+.intake-tile-sub {
+    font-size: 0.8rem;
+    color: #64748B;
+    margin-bottom: 0.75rem;
+    line-height: 1.45;
+}
+.intake-tip {
+    background: #EFF6FF;
+    border-left: 3px solid #2563EB;
+    border-radius: 0 8px 8px 0;
+    padding: 0.65rem 0.8rem;
+    font-size: 0.8rem;
+    color: #1E3A5F;
+    line-height: 1.5;
+    margin-bottom: 0.65rem;
+}
+.intake-status-card {
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
+    margin: 0.75rem 0 1rem;
+    border: 1px solid transparent;
+}
+.intake-status-warning {
+    background: #FFFBEB;
+    border-color: #FDE68A;
+}
+.intake-status-success {
+    background: #ECFDF5;
+    border-color: #A7F3D0;
+}
+.intake-status-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 0.35rem;
+}
+.intake-status-warning .intake-status-title { color: #B45309; }
+.intake-status-success .intake-status-title { color: #047857; }
+.intake-status-body {
+    font-size: 0.84rem;
+    color: #334155;
+    line-height: 1.55;
+}
+.stripe-dashboard-card {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 0.25rem 0.25rem 0.75rem;
+    margin: 1rem 0 0.5rem;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+    overflow: hidden;
+}
+.stripe-dashboard-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.84rem;
+    color: #334155;
+}
+.stripe-dashboard-table th {
+    text-align: left;
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #64748B;
+    background: #F8FAFC;
+    padding: 0.65rem 0.9rem;
+    border-bottom: 1px solid #E2E8F0;
+}
+.stripe-dashboard-table td {
+    padding: 0.85rem 0.9rem;
+    border-bottom: 1px solid #E2E8F0;
+    vertical-align: top;
+}
+.stripe-muted { color: #64748B; font-size: 0.78rem; }
+.stripe-action-cell { color: #2563EB; font-weight: 600; }
+.stripe-card-foot {
+    font-size: 0.76rem;
+    color: #64748B;
+    padding: 0.55rem 0.9rem 0;
+}
+.sandbox-preview-banner {
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+    color: #B91C1C;
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.85rem;
+    text-align: center;
+    letter-spacing: 0.04em;
+    font-size: 0.82rem;
+}
 </style>
 """, unsafe_allow_html=True)
 
