@@ -25,7 +25,8 @@ cookie:
   key: traceact_dev_cookie_signing_key_change_me
   expiry_days: 30
 
-preauthorized:
-  emails:
-    - demo@traceact.eu
-    - trial@traceact.eu
+# Open self-service registration is enabled by default.
+# To restrict sign-ups, set AUTH_INVITE_ONLY=true and uncomment:
+# pre-authorized:
+#   emails:
+#     - colleague@company.com
