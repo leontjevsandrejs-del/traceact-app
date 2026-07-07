@@ -1,9 +1,9 @@
 """
 Enterprise authentication gate for TraceAct B2B SaaS.
 
-Uses streamlit-authenticator for sign-in / registration. Unauthenticated
-viewers see only the enterprise login screen; ``st.stop()`` halts the script
-before any proprietary multi-agent evaluation logic is loaded.
+Unauthenticated viewers see only an isolated login portal. The authenticated
+application shell (sidebar, wizard, multi-agent pipeline) loads only after
+``authentication_status`` is True.
 """
 
 from __future__ import annotations
@@ -15,14 +15,17 @@ import streamlit as st
 import streamlit_authenticator as stauth
 import yaml
 
-from utils.auth_session import AUTHENTICATOR_STATE_KEY
+from utils.auth_session import (
+    AUTHENTICATOR_STATE_KEY,
+    AUTH_STATUS_KEY,
+    AUTH_USERNAME_KEY,
+)
 from utils.credential_store import (
     load_merged_credentials,
     register_runtime_user,
     sync_yaml_credentials_snapshot,
 )
 from utils.tenant_db import ensure_company_profile
-from utils.auth_session import AUTH_STATUS_KEY, AUTH_USERNAME_KEY
 from utils.user_session import sync_auth_session
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -96,26 +99,123 @@ def _get_authenticator() -> stauth.Authenticate:
     return st.session_state[_AUTH_STATE_KEY]
 
 
-def _render_enterprise_login_shell() -> None:
+def _restore_session_from_cookie() -> None:
+    """Silent cookie re-auth — no UI."""
+    if st.session_state.get(AUTH_STATUS_KEY) is True:
+        return
+    authenticator = _get_authenticator()
+    authenticator.login(location="unrendered", key="TraceActSilentLogin")
+
+
+def _inject_login_portal_css() -> None:
     st.markdown(
         """
-        <div style="max-width:520px;margin:2.5rem auto 1.5rem;text-align:center;">
-          <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.14em;
-               text-transform:uppercase;color:#2563EB;margin-bottom:0.5rem;">
-            TraceAct Enterprise
-          </div>
-          <div style="font-size:1.65rem;font-weight:700;color:#0F172A;
-               letter-spacing:-0.02em;margin-bottom:0.35rem;">
-            EU AI Act Compliance Workspace
-          </div>
-          <div style="font-size:0.9rem;color:#64748B;line-height:1.6;">
-            Secure B2B access to the multi-agent conformity auditor.
-            Sign in with your corporate credentials or register your organisation.
-          </div>
-        </div>
+        <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        html, body, [class*="css"] {
+            font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(160deg, #EFF6FF 0%, #F8FAFC 45%, #E2E8F0 100%);
+        }
+        #MainMenu, footer, header { visibility: hidden; }
+        section[data-testid="stSidebar"],
+        [data-testid="stSidebarCollapsedControl"] {
+            display: none !important;
+        }
+        [data-testid="stNavigation"] { display: none !important; }
+        .main .block-container {
+            max-width: 480px !important;
+            padding: 2rem 1.75rem 2.25rem;
+            margin-top: 2.5rem;
+            margin-bottom: 3rem;
+            background: #FFFFFF;
+            border: 1px solid #E2E8F0;
+            border-radius: 18px;
+            box-shadow: 0 24px 48px rgba(15, 23, 42, 0.08);
+        }
+        .traceact-login-eyebrow {
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: #2563EB;
+            text-align: center;
+            margin-bottom: 0.45rem;
+        }
+        .traceact-login-title {
+            font-size: 1.55rem;
+            font-weight: 700;
+            color: #0F172A;
+            text-align: center;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.35rem;
+        }
+        .traceact-login-sub {
+            font-size: 0.88rem;
+            color: #64748B;
+            text-align: center;
+            line-height: 1.6;
+            margin-bottom: 1.25rem;
+        }
+        div[data-testid="stTabs"] [role="tablist"] {
+            border-bottom: 2px solid #E2E8F0;
+            gap: 0;
+        }
+        div[data-testid="stTabs"] button[role="tab"] {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: #64748B;
+            padding: 0.55rem 1rem;
+            border-bottom: 3px solid transparent;
+            background: transparent;
+        }
+        div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+            color: #2563EB;
+            border-bottom-color: #2563EB;
+        }
+        </style>
         """,
         unsafe_allow_html=True,
     )
+
+
+def _render_login_portal_header() -> None:
+    st.markdown(
+        """
+        <div style="text-align:center;margin-bottom:1rem;">
+            <svg width="48" height="48" viewBox="0 0 36 36" fill="none"
+                 xmlns="http://www.w3.org/2000/svg">
+              <path d="M18 2L4 8V18C4 25.18 10.08 31.84 18 34C25.92 31.84 32 25.18 32 18V8L18 2Z"
+                    fill="#2563EB" opacity="0.15"/>
+              <path d="M18 2L4 8V18C4 25.18 10.08 31.84 18 34C25.92 31.84 32 25.18 32 18V8L18 2Z"
+                    stroke="#2563EB" stroke-width="2" stroke-linejoin="round" fill="none"/>
+              <path d="M12 18L16 22L24 14" stroke="#2563EB" stroke-width="2.2"
+                    stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="traceact-login-eyebrow">TraceAct Enterprise</div>
+          <div class="traceact-login-title">EU AI Act Compliance Workspace</div>
+          <div class="traceact-login-sub">
+            Secure B2B access to the multi-agent conformity auditor.
+            Sign in or register your organisation to begin.
+          </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _try_auto_login_after_registration(
+    authenticator: stauth.Authenticate,
+    username: str,
+    password: str,
+    contact_email: str,
+) -> bool:
+    """Mount the workspace immediately after successful registration."""
+    if authenticator.authentication_controller.login(username, password):
+        authenticator.cookie_controller.set_cookie()
+        ensure_company_profile(username, contact_email=contact_email)
+        sync_auth_session()
+        st.rerun()
+    return False
 
 
 def _render_registration_form(authenticator: stauth.Authenticate) -> None:
@@ -162,7 +262,10 @@ def _render_registration_form(authenticator: stauth.Authenticate) -> None:
         if creds:
             sync_yaml_credentials_snapshot(creds)
         _reset_authenticator_cache()
-        ensure_company_profile(saved_user, contact_email=registered_email)
+        authenticator = _get_authenticator()
+        _try_auto_login_after_registration(
+            authenticator, saved_user, password, registered_email,
+        )
         st.success(
             f"Organisation registered for **{registered_name}**. "
             f"Sign in with username **`{saved_user}`** on the **Sign In** tab."
@@ -186,43 +289,65 @@ def get_sidebar_authenticator() -> stauth.Authenticate:
     return _get_authenticator()
 
 
-def enforce_authentication() -> str:
-    """
-    Render login / registration and return the authenticated username.
+def render_isolated_login_portal() -> None:
+    """Full-screen login portal — no sidebar, wizard, or workspace chrome."""
+    _inject_login_portal_css()
+    _render_login_portal_header()
 
-    Calls ``st.stop()`` when the session is unauthenticated so downstream
-    application code never executes.
-    """
     authenticator = _get_authenticator()
+    login_tab, register_tab = st.tabs(["Sign In", "Register Organisation"])
+    with login_tab:
+        authenticator.login(location="main", key="TraceActLogin")
+    with register_tab:
+        _render_registration_form(authenticator)
 
-    if not st.session_state.get(AUTH_STATUS_KEY):
-        authenticator.login(location="unrendered", key="TraceActSilentLogin")
-
-    if not st.session_state.get(AUTH_STATUS_KEY):
-        _render_enterprise_login_shell()
-        login_tab, register_tab = st.tabs(["Sign In", "Register Organisation"])
-        with login_tab:
-            authenticator.login(location="main", key="TraceActLogin")
-        with register_tab:
-            _render_registration_form(authenticator)
-
-    username = sync_auth_session() or st.session_state.get(AUTH_USERNAME_KEY)
     auth_status = st.session_state.get(AUTH_STATUS_KEY)
-
-    if auth_status and username:
-        ensure_company_profile(
-            username,
-            contact_email=st.session_state.get("email", ""),
-        )
-        return username
-
     if auth_status is False:
         st.error(
             "Invalid username or password. Usernames are stored in lowercase — "
             "try again or re-register if this is a new deployment."
         )
-    else:
+    elif auth_status is not True:
         st.warning("Please sign in or register to access the compliance workspace.")
-    st.stop()
 
 
+def authenticate_or_show_portal() -> bool:
+    """
+    Restore cookie session, then either admit the user or render the login wall.
+
+    Returns True when ``authentication_status`` is active and the username is
+    synced into TraceAct session scope.
+    """
+    _restore_session_from_cookie()
+
+    username = sync_auth_session() or st.session_state.get(AUTH_USERNAME_KEY)
+    if st.session_state.get(AUTH_STATUS_KEY) is True and username:
+        ensure_company_profile(
+            username,
+            contact_email=st.session_state.get("email", ""),
+        )
+        return True
+
+    render_isolated_login_portal()
+
+    # Login may have succeeded during form submission in this run.
+    username = sync_auth_session() or st.session_state.get(AUTH_USERNAME_KEY)
+    if st.session_state.get(AUTH_STATUS_KEY) is True and username:
+        ensure_company_profile(
+            username,
+            contact_email=st.session_state.get("email", ""),
+        )
+        st.rerun()
+
+    return False
+
+
+def enforce_authentication() -> str:
+    """
+    Back-compat wrapper — halts the script when unauthenticated.
+
+    Prefer ``authenticate_or_show_portal()`` at the top of ``app.py``.
+    """
+    if not authenticate_or_show_portal():
+        st.stop()
+    return sync_auth_session()

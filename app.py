@@ -3,8 +3,11 @@ TraceAct central engine router.
 
 app.py is the core control center: it boots the content database
 (content.json → st.session_state.content), applies the corporate dashboard
-chrome, and dispatches to the functional views in ui_layouts.py through
-Streamlit's native st.navigation framework.
+chrome, and dispatches to the functional views in ui_layouts.py.
+
+Unauthenticated visitors see only the isolated B2B login portal. The
+assessment wizard, sidebar vault, and multi-agent pipeline mount only after
+``authentication_status`` is True.
 """
 
 import json
@@ -12,11 +15,6 @@ import os
 
 import streamlit as st
 from dotenv import load_dotenv
-
-from utils.auth_gate import enforce_authentication
-from utils.billing_ui import sync_credit_count
-from utils.sidebar_ui import render_enterprise_sidebar
-from ui_layouts import render_workspace_engine, render_legal_hub
 
 load_dotenv()
 
@@ -28,9 +26,18 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ── ACCESS CONTROL GATE ───────────────────────────────────────────────────────
-# Halts the script before proprietary evaluation logic for anonymous viewers.
-enforce_authentication()
+# ── LOGIN ISOLATION WALL (runs before any workspace chrome) ───────────────────
+from utils.auth_gate import authenticate_or_show_portal
+
+if not authenticate_or_show_portal():
+    st.stop()
+
+# ── AUTHENTICATED APPLICATION SHELL ─────────────────────────────────────────
+# Proprietary evaluation modules load only after the login wall passes.
+from utils.billing_ui import sync_credit_count
+from utils.sidebar_ui import render_enterprise_sidebar
+from ui_layouts import render_workspace_engine, render_legal_hub
+
 sync_credit_count()
 
 
@@ -544,21 +551,8 @@ st.markdown(f"""
 <div style="height:1px;background:linear-gradient(90deg,#2563EB 0%,#E2E8F0 55%);margin:1rem 0 1.25rem;"></div>
 """, unsafe_allow_html=True)
 
-# ── Dynamic navigation routes ─────────────────────────────────────────────────
-pages = [
-    st.Page(
-        render_workspace_engine,
-        title="Compliance Workspace",
-        icon=":material/dashboard:",
-        default=True,
-    ),
-    st.Page(
-        render_legal_hub,
-        title="Legal & Imprint",
-        icon=":material/gavel:",
-    ),
-]
-
 render_enterprise_sidebar()
-pg = st.navigation(pages, position="top")
-pg.run()
+render_workspace_engine()
+
+with st.expander("Legal & Imprint", expanded=False):
+    render_legal_hub()
