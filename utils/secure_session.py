@@ -98,6 +98,19 @@ def establish_secure_cookie_session(user_id: str, email: str) -> None:
     )
 
 
+def restore_workspace_identity() -> bool:
+    """Apply a validated secure session token to the Streamlit workspace identity."""
+    session = current_secure_session()
+    if not session:
+        return False
+    user_id = session["user_id"]
+    email = session["email"]
+    st.session_state["auth_username"] = user_id
+    st.session_state["traceact_user_email"] = email
+    st.session_state["traceact_session_id"] = user_id
+    return True
+
+
 def clear_secure_session() -> None:
     st.session_state.pop(_SESSION_STATE_KEY, None)
     components.html(

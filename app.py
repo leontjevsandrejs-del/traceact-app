@@ -31,15 +31,9 @@ def _payment_gate_open() -> bool:
 if not _payment_gate_open():
     st.stop()
 
-def _restore_secure_session() -> None:
-    from utils.secure_session import current_secure_session
-    from utils.user_session import activate_workspace_user
-    session = current_secure_session()
-    if session:
-        activate_workspace_user(session["user_id"], session["email"])
+from utils.secure_session import restore_workspace_identity
 
-
-_restore_secure_session()
+restore_workspace_identity()
 
 from utils.billing_ui import sync_credit_count
 from utils.sidebar_ui import render_enterprise_sidebar

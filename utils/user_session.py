@@ -9,13 +9,6 @@ from __future__ import annotations
 
 import streamlit as st
 
-from utils.activation_state import (
-    clear_pending_activation,
-    is_pending_activation,
-    pending_activation,
-    set_pending_activation,
-)
-
 GUEST_USER_ID = "guest_auditor"
 GUEST_USER_EMAIL = "guest_auditor@traceact.eu"
 
