@@ -46,18 +46,16 @@ from utils.report_gen import generate_pdf_report
 from utils.user_session import us_get, us_set, us_pop, us_contains, current_user_id
 from utils.tenant_db import deduct_audit_credit
 from utils.billing_ui import (
-    intake_inputs_unlocked,
-    is_sandbox_demo,
+    has_audit_credits,
     sync_credit_count,
     ensure_description_widget_state,
     sync_description_to_intake,
-    render_intake_mode_selector,
+    render_intake_onboarding_tip,
     render_stripe_purchase_card,
-    render_intake_access_status,
+    render_full_audit_locked_notice,
     render_column_tile_header,
     render_column_tile_footer,
-    render_sandbox_preview_banner,
-    SANDBOX_WATERMARK,
+    DESCRIPTION_WIDGET_KEY,
 )
 
 PRIMARY_MODEL = "gemini-2.5-flash"
@@ -443,6 +441,153 @@ def render_workspace_engine():
                                       ws.get("command_center", {}))
 
 
+def _process_step4_upload(wizard_file, intake: dict, s4: dict) -> None:
+    if wizard_file is None:
+        return
+    try:
+        wizard_file.seek(0)
+        if wizard_file.name.lower().endswith(".pdf"):
+            reader = pypdf.PdfReader(wizard_file)
+            intake["evidence_text"] = "\n".join(
+                (page.extract_text() or "") for page in reader.pages
+            )
+        else:
+            intake["evidence_text"] = wizard_file.read().decode(
+                "utf-8", errors="replace"
+            )
+        st.success(s4.get("upload_success", "Document cached."))
+    except Exception:
+        intake["evidence_text"] = ""
+        st.error(s4.get("upload_error", "Could not extract text."))
+
+
+def _render_light_preview_results(s4: dict) -> None:
+    preview = us_get("light_preview")
+    if not preview:
+        return
+    st.markdown(
+        '<div class="section-label" style="margin-top:0.75rem;">Light Preview Results</div>',
+        unsafe_allow_html=True,
+    )
+    st.metric(
+        label=s4.get("preview_metric", "Preliminary Risk Tier"),
+        value=preview.get("tier", "—"),
+    )
+    st.markdown(f"**Primary Citation:** {preview.get('citation', '—')}")
+    st.caption(
+        "Deterministic preliminary scan only. Annex IV gap analysis, multi-agent "
+        "compliance matrices, and certified PDF reports require an audit credit."
+    )
+    pathway = preview.get("decision_path") or []
+    if pathway:
+        with st.expander(s4.get("pathway_label", "View the statutory decision pathway")):
+            for step_line in pathway:
+                st.markdown(f"- {step_line}")
+
+
+def _render_step4_intake_workspace(s4: dict, intake: dict, wz: dict) -> None:
+    st.markdown(f"""
+    <div class="section-label" style="margin-bottom:0.6rem;">{s4.get("label", "")}</div>
+    <div class="section-sub">{s4.get("sub", "")}</div>
+    """, unsafe_allow_html=True)
+
+    sync_credit_count()
+    has_credits = st.session_state.get("credit_count", 0) > 0
+    ensure_description_widget_state(intake.get("description", ""))
+
+    # ── SECTION A: Intake Data ───────────────────────────────────────────────
+    st.markdown(
+        '<div class="intake-section-label">Section A — Intake Data</div>',
+        unsafe_allow_html=True,
+    )
+    render_intake_onboarding_tip()
+
+    col_upload, col_paste = st.columns([1, 1], gap="large")
+
+    with col_upload:
+        render_column_tile_header(
+            "Evidence Document",
+            "Upload technical documentation for Annex IV reconciliation.",
+        )
+        wizard_file = st.file_uploader(
+            s4.get("upload_label", "Drop a file (TXT or PDF)"),
+            type=["txt", "pdf"],
+            key="wizard_uploader",
+            help=s4.get("upload_help", ""),
+        )
+        _process_step4_upload(wizard_file, intake, s4)
+        render_column_tile_footer()
+
+    with col_paste:
+        render_column_tile_header(
+            "System Description",
+            "Describe workflows, human oversight gates, and deployment scope.",
+        )
+        st.text_area(
+            s4.get("paste_label", "Or paste a product description / notes here"),
+            height=200,
+            placeholder=s4.get("paste_placeholder", ""),
+            help=(
+                "Define whether the tool is a human-verified suggestion or text "
+                "optimization aid. Human-in-the-loop workflows default safely to "
+                "Minimal Risk under the Act."
+            ),
+            key=DESCRIPTION_WIDGET_KEY,
+            label_visibility="visible",
+        )
+        render_column_tile_footer()
+
+    sync_description_to_intake(intake)
+
+    # ── SECTION B: Conversion Trigger ────────────────────────────────────────
+    st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="intake-section-label">Section B — Preliminary Scan</div>',
+        unsafe_allow_html=True,
+    )
+
+    if has_credits:
+        st.info(
+            "You have audit credits available. Use the **Conformity Assessment** tab "
+            "to run the full multi-agent audit and download your certified PDF report."
+        )
+    elif st.button("Run Free Preliminary Scan", type="primary", key="light_preview_scan"):
+        if not intake.get("industry"):
+            st.error("Complete Steps 1–3 of the wizard before running a preliminary scan.")
+        else:
+            preview = classify_risk(intake)
+            us_set(
+                "light_preview",
+                {
+                    "tier": preview.tier,
+                    "citation": preview.citation,
+                    "decision_path": list(preview.decision_path),
+                },
+            )
+            st.rerun()
+
+    _render_light_preview_results(s4)
+
+    # ── SECTION C: Premium Paywall Gate ──────────────────────────────────────
+    if not has_credits:
+        st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="intake-section-label">Section C — Unlock Full Audit</div>',
+            unsafe_allow_html=True,
+        )
+        render_stripe_purchase_card(context="system description & evidence intake")
+
+    col_back, col_done = st.columns([1, 5])
+    with col_back:
+        if st.button(s4.get("back_button", "← Back")):
+            us_set("step", 3)
+            st.rerun()
+    with col_done:
+        if st.button(s4.get("confirm_button", "✓ Confirm Intake"), type="primary"):
+            intake["confirmed"] = True
+            st.success(s4.get("confirm_success", "Intake locked."))
+
+
 def _render_intake_wizard(wz: dict):
     _section_header(wz.get("label", ""), wz.get("title", ""), wz.get("sub", ""))
 
@@ -610,143 +755,21 @@ def _render_intake_wizard(wz: dict):
 
     # ── STEP 4: Evidence Upload & Intake Review ──────────────────────────────
     else:
-        s4 = wz.get("step4", {})
-        st.markdown(f"""
-        <div class="section-label" style="margin-bottom:0.6rem;">{s4.get("label", "")}</div>
-        <div class="section-sub">{s4.get("sub", "")}</div>
-        """, unsafe_allow_html=True)
-
-        st.markdown('<div class="intake-card-shell">', unsafe_allow_html=True)
-        sync_credit_count()
-        render_intake_mode_selector()
-        has_credits = st.session_state.get("credit_count", 0) > 0
-        sandbox_active = is_sandbox_demo()
-        inputs_unlocked = has_credits or sandbox_active
-        ensure_description_widget_state(intake.get("description", ""))
-        render_intake_access_status()
-
-        col_upload, col_paste = st.columns([1, 1], gap="large")
-
-        with col_upload:
-            render_column_tile_header(
-                "Evidence Document",
-                "Upload technical documentation for Annex IV reconciliation.",
-            )
-            wizard_file = st.file_uploader(
-                s4.get("upload_label", "Drop a file (TXT or PDF)"),
-                type=["txt", "pdf"],
-                key="wizard_uploader",
-                help=s4.get("upload_help", ""),
-                disabled=not inputs_unlocked,
-            )
-            if wizard_file is not None:
-                try:
-                    wizard_file.seek(0)
-                    if wizard_file.name.lower().endswith(".pdf"):
-                        reader = pypdf.PdfReader(wizard_file)
-                        intake["evidence_text"] = "\n".join(
-                            (page.extract_text() or "") for page in reader.pages
-                        )
-                    else:
-                        intake["evidence_text"] = wizard_file.read().decode(
-                            "utf-8", errors="replace"
-                        )
-                    st.success(s4.get("upload_success", "Document cached."))
-                except Exception:
-                    intake["evidence_text"] = ""
-                    st.error(s4.get("upload_error", "Could not extract text."))
-            render_column_tile_footer()
-
-        with col_paste:
-            render_column_tile_header(
-                "System Description",
-                "Describe workflows, human oversight gates, and deployment scope.",
-            )
-            st.markdown(
-                '<div class="intake-tip"><strong>Quick Tip:</strong> Clearly outline '
-                "human verification gates. Avoid <strong>fully autonomous decision making</strong> "
-                "if a human supervisor signs off on final outputs.</div>",
-                unsafe_allow_html=True,
-            )
-            st.text_area(
-                s4.get("paste_label", "Or paste a product description / notes here"),
-                height=200,
-                placeholder=s4.get("paste_placeholder", ""),
-                help=(
-                    "Define whether the tool is a human-verified suggestion or text "
-                    "optimization aid. Human-in-the-loop workflows default safely to "
-                    "Minimal Risk under the Act."
-                ),
-                disabled=not inputs_unlocked,
-                key="wizard_description_area",
-                label_visibility="visible",
-            )
-            render_column_tile_footer()
-
-        sync_description_to_intake(intake)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        if not inputs_unlocked:
-            render_stripe_purchase_card(context="system description & evidence intake")
-
-        # ── Live classification preview (deterministic statutory cascade) ─────
-        preview = classify_risk(intake)
-        preview_tier, preview_citation = preview.tier, preview.citation
-        st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
-        st.markdown(
-            f'<div class="section-label" style="margin-bottom:0.6rem;">{s4.get("summary_label", "")}</div>',
-            unsafe_allow_html=True,
-        )
-
-        sum_col1, sum_col2 = st.columns([1, 1], gap="large")
-        with sum_col1:
-            st.markdown(
-                f"**Industry Sector:** {intake.get('industry', '—')}  \n"
-                f"**Value-Chain Role:** {intake.get('role', '—')}  \n"
-                f"**Biometric Footprint:** {intake.get('biometric', '—')}  \n"
-                f"**Profiling / Policing:** {intake.get('policing', '—')}"
-            )
-        with sum_col2:
-            st.markdown(
-                f"**Training Data Source:** {intake.get('data_source', '—')}  \n"
-                f"**Operational Scope:** {intake.get('audience', '—')}  \n"
-                f"**Human Oversight:** {intake.get('oversight', '—')}"
-            )
-
-        st.metric(label=s4.get("preview_metric", "Preliminary Risk Tier"),
-                  value=preview_tier)
-        st.markdown(f"**Primary Citation:** {preview_citation}")
-
-        with st.expander(s4.get("pathway_label",
-                                "View the statutory decision pathway")):
-            for step_line in preview.decision_path:
-                st.markdown(f"- {step_line}")
-
-        col_back, col_done = st.columns([1, 5])
-        with col_back:
-            if st.button(s4.get("back_button", "← Back")):
-                us_set("step", 3)
-                st.rerun()
-        with col_done:
-            if st.button(s4.get("confirm_button", "✓ Confirm Intake"), type="primary"):
-                intake["confirmed"] = True
-                st.success(s4.get("confirm_success", "Intake locked."))
+        _render_step4_intake_workspace(wz.get("step4", {}), intake, wz)
 
 
 def _render_evidence_vault(ev: dict):
     _section_header(ev.get("label", ""), ev.get("title", ""), ev.get("sub", ""))
-    inputs_unlocked = intake_inputs_unlocked()
-    if not inputs_unlocked:
-        render_intake_access_status()
-        render_stripe_purchase_card(context="evidence vault")
     extra_file = st.file_uploader(
         ev.get("upload_label", "Upload additional documentation (TXT / PDF)"),
         type=["txt", "pdf"],
         key="tab2_uploader",
-        disabled=not inputs_unlocked,
     )
     if extra_file:
         st.success(ev.get("upload_success", "Document cached."))
+    if not has_audit_credits():
+        render_full_audit_locked_notice()
+        render_stripe_purchase_card(context="evidence vault")
 
 
 def _render_conformity_assessment(assess: dict, cc: dict):
@@ -761,40 +784,29 @@ def _render_conformity_assessment(assess: dict, cc: dict):
         us_set("pdf_data_bytes", None)
 
     sync_credit_count()
-    sandbox_mode = is_sandbox_demo()
-    inputs_unlocked = intake_inputs_unlocked()
 
-    if sandbox_mode:
-        render_intake_access_status()
-
-    if not inputs_unlocked:
+    if not has_audit_credits():
+        render_full_audit_locked_notice()
         render_stripe_purchase_card(context="conformity assessment")
-    else:
-        run_label = (
-            "Run Free Preview Audit"
-            if sandbox_mode
-            else assess.get("run_button", "Run Compliance Audit")
-        )
-        if st.button(run_label, type="primary"):
-            us_set("audit_complete", False)
-            us_set("report_markdown", "")
-            us_set("pdf_data_bytes", None)
-            us_set("sandbox_audit", sandbox_mode)
+    elif st.button(assess.get("run_button", "Run Compliance Audit"), type="primary"):
+        us_set("audit_complete", False)
+        us_set("report_markdown", "")
+        us_set("pdf_data_bytes", None)
 
-            client = get_gemini_client()
-            intake = us_get("intake", {})
-            if client is None:
-                st.error(assess.get("missing_key_error", "Missing GEMINI_API_KEY."))
-            elif not intake.get("industry"):
-                st.error(assess.get("missing_intake_error", "Complete the wizard first."))
-            else:
-                _run_audit_pipeline(client, intake, assess, sandbox_mode=sandbox_mode)
+        client = get_gemini_client()
+        intake = us_get("intake", {})
+        if client is None:
+            st.error(assess.get("missing_key_error", "Missing GEMINI_API_KEY."))
+        elif not intake.get("industry"):
+            st.error(assess.get("missing_intake_error", "Complete the wizard first."))
+        else:
+            _run_audit_pipeline(client, intake, assess)
 
     if us_get("audit_complete"):
         _render_command_center(cc)
 
 
-def _run_audit_pipeline(client, intake: dict, assess: dict, sandbox_mode: bool = False):
+def _run_audit_pipeline(client, intake: dict, assess: dict):
     """
     Deterministic-first audit pipeline:
 
@@ -1035,17 +1047,10 @@ def _run_audit_pipeline(client, intake: dict, assess: dict, sandbox_mode: bool =
 
     if final_report_text and action_plan_text:
         pathway_md = "\n".join(f"1. {s}" for s in classification.decision_path)
-        report_body = (
+        us_set("report_markdown", (
             f"### Statutory Decision Pathway (deterministic)\n{pathway_md}\n\n"
             f"{final_report_text}\n\n## Engineering Action Plan\n{action_plan_text}"
-        )
-        if sandbox_mode:
-            report_body = (
-                f"> **{SANDBOX_WATERMARK}**\n\n"
-                f"This preview was generated in Sandbox Demo Mode and must not be "
-                f"used as regulatory evidence.\n\n{report_body}"
-            )
-        us_set("report_markdown", report_body)
+        ))
         pdf_bytes = generate_pdf_report(
             final_report_text,
             classification=classification,
@@ -1057,19 +1062,12 @@ def _run_audit_pipeline(client, intake: dict, assess: dict, sandbox_mode: bool =
             disclaimer_line=_c("legal", "disclaimer", "pdf_line"),
             legal_narrative=final_report_text,
             action_plan=action_plan_text,
-            is_sandbox=sandbox_mode,
         )
         us_set("pdf_data_bytes", pdf_bytes)
         us_set("risk_tier", system_risk_status)
         us_set("risk_citation", risk_citation)
         us_set("audit_date", date.today().isoformat())
-        us_set("sandbox_audit", sandbox_mode)
         us_pop("obligations_df", None)
-
-        if sandbox_mode:
-            us_set("audit_complete", True)
-            st.rerun()
-            return
 
         uid = current_user_id()
         if uid and not deduct_audit_credit(uid, 1):
@@ -1100,9 +1098,6 @@ def _render_command_center(cc: dict):
 
     # ── COMMAND CENTER TAB 1: Overview ────────────────────────────────────────
     with cc_overview:
-        if us_get("sandbox_audit"):
-            render_sandbox_preview_banner()
-
         ov1, ov2, ov3 = st.columns(3)
         ov1.metric("EU AI Act Risk Tier", tier_done.split(" (")[0])
         ov2.metric("Primary Citation", citation_done)
@@ -1112,14 +1107,11 @@ def _render_command_center(cc: dict):
 
         pdf_bytes = us_get("pdf_data_bytes")
         if pdf_bytes:
-            download_label = cc.get(
-                "save_button",
-                "Download Official Compliance Report (PDF)",
-            )
-            if us_get("sandbox_audit"):
-                download_label = "Download Sandbox Preview Report (PDF)"
             st.download_button(
-                label=download_label,
+                label=cc.get(
+                    "save_button",
+                    "Download Certified PDF Report",
+                ),
                 data=pdf_bytes,
                 file_name="EU_AI_Act_Audit_Report.pdf",
                 mime="application/pdf",

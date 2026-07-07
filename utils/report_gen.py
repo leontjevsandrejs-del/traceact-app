@@ -72,25 +72,6 @@ def annex_iv_row_display(finding, classification=None, had_documentation: bool =
 class _AuditPDF(FPDF):
     """FPDF subclass that stamps a branded header and page-number footer."""
 
-    def __init__(self, sandbox_preview: bool = False):
-        super().__init__()
-        self.sandbox_preview = sandbox_preview
-
-    def _stamp_sandbox_watermark(self) -> None:
-        if not self.sandbox_preview:
-            return
-        # FPDF2 equivalent of ReportLab canvas saveState / rotate / drawString.
-        with self.local_context():
-            self.set_font("Helvetica", "B", 24)
-            self.set_text_color(210, 214, 220)
-            self.rotate(42, x=105, y=150)
-            self.text(
-                4,
-                150,
-                "SANDBOX PREVIEW - NOT LEGAL COMPLIANCE EVIDENCE",
-            )
-            self.rotate(0)
-
     def header(self):
         self.set_draw_color(*_C_ACCENT)
         self.set_line_width(0.4)
@@ -98,14 +79,10 @@ class _AuditPDF(FPDF):
         self.set_font("Helvetica", "I", 7.5)
         self.set_text_color(*_C_ACCENT)
         self.set_y(9)
-        header_text = (
-            "EU AI Act Compliance Assessment Hub  |  SANDBOX PREVIEW FILE"
-            if self.sandbox_preview
-            else "EU AI Act Compliance Assessment Hub  |  Confidential Audit File"
-        )
-        self.cell(0, 5, header_text, align="C")
+        self.cell(0, 5,
+                  "EU AI Act Compliance Assessment Hub  |  Confidential Audit File",
+                  align="C")
         self.ln(8)
-        self._stamp_sandbox_watermark()
 
     def footer(self):
         self.set_y(-13)
@@ -398,33 +375,20 @@ def generate_pdf_report(final_report_text,
                         industry=None,
                         disclaimer_line=None,
                         legal_narrative=None,
-                        action_plan=None,
-                        sandbox_preview: bool = False,
-                        is_sandbox: bool = False):
+                        action_plan=None):
     """
     Build the 4-tier conformity report.
 
     ``final_report_text`` (full agent markdown) is used as the narrative when
     the split ``legal_narrative`` / ``action_plan`` sections are not provided,
     preserving backward compatibility with the legacy single-blob flow.
-
-    ``is_sandbox`` / ``sandbox_preview`` overlay a diagonal watermark on every page.
     """
-    sandbox = is_sandbox or sandbox_preview
-    pdf = _AuditPDF(sandbox_preview=sandbox)
+    pdf = _AuditPDF()
     pdf.set_auto_page_break(auto=True, margin=20)
     pdf.set_margins(left=20, top=20, right=20)
     pdf.add_page()
 
     # ── Cover title ───────────────────────────────────────────────────────────
-    if sandbox:
-        pdf.set_fill_color(220, 38, 38)
-        pdf.set_text_color(*_C_WHITE)
-        pdf.set_font("Helvetica", "B", 11)
-        pdf.cell(0, 10, "SANDBOX PREVIEW - NOT LEGAL COMPLIANCE EVIDENCE",
-                 ln=True, fill=True, align="C")
-        pdf.ln(2)
-
     pdf.set_fill_color(*_C_SLATE)
     pdf.set_text_color(*_C_WHITE)
     pdf.set_font("Helvetica", "B", 16)

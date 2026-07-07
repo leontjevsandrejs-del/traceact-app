@@ -279,6 +279,25 @@ div[data-testid="stButton"] > button[kind="primary"]:hover {
 }
 
 /* ── Step 4 intake workspace (premium B2B tiles) ─────────────────────────── */
+.intake-tip-banner {
+    margin-bottom: 1rem;
+}
+.intake-section-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #64748B;
+    margin: 0.5rem 0 0.65rem;
+}
+.stripe-section-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #2563EB;
+    padding: 0.75rem 0.9rem 0.25rem;
+}
 .intake-card-shell {
     background: #FFFFFF;
     border: 1px solid #E2E8F0;

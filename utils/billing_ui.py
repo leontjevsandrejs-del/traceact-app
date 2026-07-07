@@ -1,5 +1,5 @@
 """
-Paywall UI helpers — Stripe checkout surfacing, credit gating, and sandbox demo.
+Paywall UI helpers — Stripe checkout, credit gating, and Light Preview Mode.
 """
 
 from __future__ import annotations
@@ -11,9 +11,7 @@ import streamlit as st
 from utils.tenant_db import get_audit_credits, get_company_profile
 from utils.user_session import current_user_id
 
-SANDBOX_WATERMARK = "SANDBOX PREVIEW - NOT LEGAL COMPLIANCE EVIDENCE"
-_INTAKE_MODE_OPTIONS = ("Production Audit Mode", "Free Sandbox Demo Mode")
-_DESCRIPTION_WIDGET_KEY = "wizard_description_area"
+DESCRIPTION_WIDGET_KEY = "system_description_input"
 
 
 def sync_credit_count() -> int:
@@ -24,32 +22,26 @@ def sync_credit_count() -> int:
     return credits
 
 
-def is_sandbox_demo() -> bool:
-    return bool(st.session_state.get("sandbox_demo", False))
-
-
-def intake_inputs_unlocked() -> bool:
-    sync_credit_count()
-    return st.session_state.get("credit_count", 0) > 0 or is_sandbox_demo()
-
-
 def has_audit_credits() -> bool:
     return sync_credit_count() > 0
 
 
 def ensure_description_widget_state(fallback: str = "") -> None:
     """
-    Initialise the Step 4 description widget once.
+    Initialise the Step 4 description widget once with a stable session key.
 
     Avoids passing ``value=`` on every rerun, which fights the widget ``key``
     and causes focus loss while typing.
     """
-    if _DESCRIPTION_WIDGET_KEY not in st.session_state:
-        st.session_state[_DESCRIPTION_WIDGET_KEY] = fallback
+    if DESCRIPTION_WIDGET_KEY not in st.session_state:
+        legacy = st.session_state.get("wizard_description_area")
+        st.session_state[DESCRIPTION_WIDGET_KEY] = (
+            legacy if legacy is not None else fallback
+        )
 
 
 def sync_description_to_intake(intake: dict) -> None:
-    intake["description"] = st.session_state.get(_DESCRIPTION_WIDGET_KEY, "")
+    intake["description"] = st.session_state.get(DESCRIPTION_WIDGET_KEY, "")
 
 
 def render_credit_banner() -> int:
@@ -63,71 +55,17 @@ def render_credit_banner() -> int:
     st.sidebar.markdown("### Enterprise Account")
     st.sidebar.markdown(f"**Organisation:** {company}")
     st.sidebar.metric("Audit Credits Remaining", credits)
-    if is_sandbox_demo():
-        st.sidebar.success("Sandbox Demo active")
     return credits
 
 
-def render_intake_mode_selector() -> None:
-    """Enterprise mode switch — Production vs Free Sandbox Demo."""
-    if "intake_mode_choice" not in st.session_state:
-        st.session_state["intake_mode_choice"] = (
-            _INTAKE_MODE_OPTIONS[1]
-            if st.session_state.get("sandbox_demo")
-            else _INTAKE_MODE_OPTIONS[0]
-        )
-
+def render_intake_onboarding_tip() -> None:
     st.markdown(
         """
-        <div class="intake-mode-shell">
-          <div class="intake-mode-heading">Assessment Mode</div>
-          <div class="intake-mode-copy">
-            Choose <strong>Production Audit Mode</strong> for credit-backed official reports,
-            or <strong>Free Sandbox Demo Mode</strong> to test intake and preview structures.
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    choice = st.radio(
-        "Assessment Mode",
-        options=_INTAKE_MODE_OPTIONS,
-        horizontal=True,
-        key="intake_mode_choice",
-        label_visibility="collapsed",
-    )
-    st.session_state["sandbox_demo"] = choice == _INTAKE_MODE_OPTIONS[1]
-
-
-def render_intake_access_status() -> None:
-    """Dynamic enterprise banner — sandbox success or locked paywall guidance."""
-    if is_sandbox_demo():
-        st.markdown(
-            """
-            <div class="intake-status-card intake-status-success">
-              <div class="intake-status-body">
-                💡 <strong>Sandbox Mode Active:</strong> Enter your parameters below to test our
-                multi-agent RAG verification speed and preview report structures for free.
-              </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        return
-
-    if st.session_state.get("credit_count", 0) > 0:
-        return
-
-    st.markdown(
-        """
-        <div class="intake-status-card intake-status-paywall">
-          <div class="intake-status-title">Unlock the Conformity Workspace</div>
-          <div class="intake-status-body">
-            <strong>Activate the free Sandbox Demo</strong> above to instantly test application
-            structure, intake flow, and preview report formatting — or
-            <strong>purchase an audit credit below</strong> to generate production-grade
-            compliance evidence.
-          </div>
+        <div class="intake-tip intake-tip-banner">
+          <strong>Quick Tip:</strong> Clearly outline your human verification gates.
+          Avoid <strong>fully autonomous decision making</strong> if a human supervisor
+          signs off on final outputs — this helps our preliminary classifier surface
+          accurate risk tiers.
         </div>
         """,
         unsafe_allow_html=True,
@@ -150,7 +88,7 @@ def render_column_tile_footer() -> None:
 
 
 def render_stripe_purchase_card(context: str = "audit") -> None:
-    """Professional Stripe checkout panel for zero-credit tenants."""
+    """Premium paywall product table + Stripe checkout CTA."""
     checkout_url = os.getenv(
         "STRIPE_CHECKOUT_URL",
         "https://buy.stripe.com/test_traceact_audit_credits",
@@ -158,27 +96,41 @@ def render_stripe_purchase_card(context: str = "audit") -> None:
     st.markdown(
         """
         <div class="stripe-dashboard-card">
+          <div class="stripe-section-label">Premium Compliance Package</div>
           <table class="stripe-dashboard-table">
             <thead>
               <tr>
-                <th>Product</th>
-                <th>Includes</th>
-                <th>Action</th>
+                <th>Capability</th>
+                <th>Light Preview (Free)</th>
+                <th>Certified Audit (1 Credit)</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td><strong>TraceAct Audit Credit Pack</strong><br/>
-                    <span class="stripe-muted">Official EU AI Act conformity assessment</span></td>
-                <td><strong>1×</strong> multi-agent evaluation run<br/>
-                    <strong>1×</strong> official PDF conformity report<br/>
-                    <strong>Full</strong> obligations register export</td>
-                <td class="stripe-action-cell">Secure checkout below</td>
+                <td><strong>Preliminary risk tier scan</strong></td>
+                <td>Included</td>
+                <td>Included</td>
+              </tr>
+              <tr>
+                <td><strong>Annex IV gap analysis matrix</strong></td>
+                <td>Locked</td>
+                <td>Included</td>
+              </tr>
+              <tr>
+                <td><strong>Multi-agent compliance breach review</strong></td>
+                <td>Locked</td>
+                <td>Included</td>
+              </tr>
+              <tr>
+                <td><strong>Download certified PDF report</strong></td>
+                <td>Locked</td>
+                <td>Included</td>
               </tr>
             </tbody>
           </table>
           <div class="stripe-card-foot">
-            Credits are consumed only after a successful production PDF report is generated.
+            Purchase one audit credit below to unlock the full conformity pipeline and
+            official PDF evidence pack.
           </div>
         </div>
         """,
@@ -194,22 +146,27 @@ def render_stripe_purchase_card(context: str = "audit") -> None:
     st.caption(f"Context: {context}")
 
 
-def render_sandbox_preview_banner() -> None:
-    """On-screen watermark for sandbox audit results."""
+def render_full_audit_locked_notice() -> None:
     st.markdown(
-        f"""
-        <div class="sandbox-preview-banner">
-          <strong>{SANDBOX_WATERMARK}</strong>
+        """
+        <div class="intake-status-card intake-status-paywall">
+          <div class="intake-status-title">Full Audit Locked</div>
+          <div class="intake-status-body">
+            <strong>Annex IV gap analysis</strong>, the <strong>multi-agent compliance
+            breach matrices</strong>, and <strong>certified PDF download</strong> require
+            an audit credit. Run the free preliminary scan above, then purchase a credit
+            <strong>below</strong> to unlock production-grade evidence.
+          </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
 
-# Backward-compatible aliases used elsewhere in the codebase.
+# Backward-compatible aliases.
 def render_stripe_paywall(context: str = "audit") -> None:
     render_stripe_purchase_card(context)
 
 
 def render_locked_description_notice() -> None:
-    render_intake_access_status()
+    render_full_audit_locked_notice()
