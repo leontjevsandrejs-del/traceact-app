@@ -2,8 +2,7 @@
 Tenant / billing abstraction layer (mock implementation).
 
 Swap the private ``_STORE`` backend for Supabase or PostgreSQL clients
-without changing the UI contract. All lookups are keyed by the authenticated
-username issued by streamlit-authenticator.
+without changing the UI contract. Lookups are keyed by workspace user id.
 """
 
 from __future__ import annotations
@@ -44,6 +43,11 @@ class TenantDatabase(Protocol):
 
 # In-memory mock store (replace with Supabase / PostgreSQL)
 _STORE: dict[str, dict] = {
+    "guest_auditor": {
+        "company_name": "Traceact Corporate Workspace",
+        "audit_credits": 3,
+        "contact_email": "guest_auditor@traceact.eu",
+    },
     "demo_user": {
         "company_name": "Demo Compliance GmbH",
         "audit_credits": 3,

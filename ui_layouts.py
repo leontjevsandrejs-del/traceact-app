@@ -43,7 +43,7 @@ from utils.annex_iv import (
 )
 from utils.knowledge import load_legal_knowledge_base, knowledge_base_inventory
 from utils.report_gen import generate_pdf_report
-from utils.user_session import us_get, us_set, us_pop, us_contains, current_user_id
+from utils.user_session import us_get, us_set, us_pop, us_contains, current_user_id, guest_user_email
 from utils.tenant_db import deduct_audit_credit, archive_purchased_audit
 from utils.billing_ui import (
     sync_credit_count,
@@ -1031,7 +1031,7 @@ def _run_audit_pipeline(client, intake: dict, assess: dict):
                 or intake.get("industry")
                 or "AI System"
             )
-            contact_email = st.session_state.get("email", "")
+            contact_email = guest_user_email()
             archive_purchased_audit(
                 uid,
                 contact_email,

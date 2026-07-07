@@ -1,13 +1,9 @@
 """
 TraceAct central engine router.
 
-app.py is the core control center: it boots the content database
-(content.json → st.session_state.content), applies the corporate dashboard
-chrome, and dispatches to the functional views in ui_layouts.py.
-
-Unauthenticated visitors see only the isolated B2B login portal. The
-assessment wizard, sidebar vault, and multi-agent pipeline mount only after
-``authentication_status`` is True.
+app.py boots the content database, applies corporate dashboard chrome,
+renders the sidebar vault, and dispatches to the assessment wizard in
+ui_layouts.py.
 """
 
 import json
@@ -15,6 +11,10 @@ import os
 
 import streamlit as st
 from dotenv import load_dotenv
+
+from utils.billing_ui import sync_credit_count
+from utils.sidebar_ui import render_enterprise_sidebar
+from ui_layouts import render_workspace_engine, render_legal_hub
 
 load_dotenv()
 
@@ -25,17 +25,6 @@ st.set_page_config(
     layout="centered",
     initial_sidebar_state="expanded",
 )
-
-# ── LOGIN ISOLATION WALL (runs before any workspace chrome) ───────────────────
-from utils.auth_gate import enforce_authentication
-
-enforce_authentication()
-
-# ── AUTHENTICATED APPLICATION SHELL ─────────────────────────────────────────
-# Proprietary evaluation modules load only after the login wall passes.
-from utils.billing_ui import sync_credit_count
-from utils.sidebar_ui import render_enterprise_sidebar
-from ui_layouts import render_workspace_engine, render_legal_hub
 
 sync_credit_count()
 
