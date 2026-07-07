@@ -1,0 +1,31 @@
+# TraceAct enterprise authentication (development defaults).
+# Copy to auth_config.yaml and rotate AUTH_COOKIE_KEY in production.
+#
+# Demo accounts:
+#   demo_user / TraceAct2026!  — 3 audit credits
+#   trial_zero / TraceAct2026! — 0 credits (paywall test)
+
+credentials:
+  usernames:
+    demo_user:
+      email: demo@traceact.eu
+      failed_login_attempts: 0
+      logged_in: false
+      name: Demo Compliance Officer
+      password: $2b$12$uBlsKBEsy5bgKLxSHJTvsOhPeVT.9g2OpvmzLkku546nOGTt5cSu2
+    trial_zero:
+      email: trial@traceact.eu
+      failed_login_attempts: 0
+      logged_in: false
+      name: Trial Account
+      password: $2b$12$uBlsKBEsy5bgKLxSHJTvsOhPeVT.9g2OpvmzLkku546nOGTt5cSu2
+
+cookie:
+  name: traceact_enterprise_cookie
+  key: traceact_dev_cookie_signing_key_change_me
+  expiry_days: 30
+
+preauthorized:
+  emails:
+    - demo@traceact.eu
+    - trial@traceact.eu

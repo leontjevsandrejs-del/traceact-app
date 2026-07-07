@@ -13,6 +13,8 @@ import os
 import streamlit as st
 from dotenv import load_dotenv
 
+from utils.auth_gate import enforce_authentication, render_account_sidebar
+from utils.billing_ui import render_credit_banner
 from ui_layouts import render_workspace_engine, render_legal_hub
 
 load_dotenv()
@@ -24,6 +26,12 @@ st.set_page_config(
     layout="centered",
     initial_sidebar_state="expanded",
 )
+
+# ── ACCESS CONTROL GATE ───────────────────────────────────────────────────────
+# Halts the script before proprietary evaluation logic for anonymous viewers.
+enforce_authentication()
+render_account_sidebar()
+render_credit_banner()
 
 
 def initialize_content() -> None:

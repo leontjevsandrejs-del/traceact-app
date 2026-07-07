@@ -43,6 +43,13 @@ from utils.annex_iv import (
 )
 from utils.knowledge import load_legal_knowledge_base, knowledge_base_inventory
 from utils.report_gen import generate_pdf_report
+from utils.user_session import us_get, us_set, us_pop, us_contains, current_user_id
+from utils.tenant_db import deduct_audit_credit
+from utils.billing_ui import (
+    has_audit_credits,
+    render_stripe_paywall,
+    render_locked_description_notice,
+)
 
 PRIMARY_MODEL = "gemini-2.5-flash"
 FALLBACK_MODEL = "gemini-2.0-flash"
@@ -430,13 +437,13 @@ def render_workspace_engine():
 def _render_intake_wizard(wz: dict):
     _section_header(wz.get("label", ""), wz.get("title", ""), wz.get("sub", ""))
 
-    if "step" not in st.session_state:
-        st.session_state.step = 1
-    if "intake" not in st.session_state:
-        st.session_state.intake = {}
+    if not us_contains("step"):
+        us_set("step", 1)
+    if not us_contains("intake"):
+        us_set("intake", {})
 
-    intake = st.session_state.intake
-    step = st.session_state.step
+    intake = us_get("intake", {})
+    step = us_get("step", 1)
 
     st.markdown(_wizard_step_header(step), unsafe_allow_html=True)
 
@@ -479,7 +486,7 @@ def _render_intake_wizard(wz: dict):
             intake["industry"] = sel_industry
             intake["company"] = sel_company.strip()
             intake["role"] = sel_role
-            st.session_state.step = 2
+            us_set("step", 2)
             st.rerun()
 
     # ── STEP 2: Algorithmic Data & Biometric Footprint ───────────────────────
@@ -524,7 +531,7 @@ def _render_intake_wizard(wz: dict):
         col_back, col_next = st.columns([1, 5])
         with col_back:
             if st.button(wz.get("step4", {}).get("back_button", "← Back")):
-                st.session_state.step = 1
+                us_set("step", 1)
                 st.rerun()
         with col_next:
             if st.button(s2.get("next_button", "Continue →"), type="primary"):
@@ -532,7 +539,7 @@ def _render_intake_wizard(wz: dict):
                 intake["policing"] = sel_policing
                 intake["social_scoring"] = sel_social
                 intake["data_source"] = sel_data_source
-                st.session_state.step = 3
+                us_set("step", 3)
                 st.rerun()
 
     # ── STEP 3: System Deployment & Human Oversight ──────────────────────────
@@ -581,7 +588,7 @@ def _render_intake_wizard(wz: dict):
         col_back, col_next = st.columns([1, 5])
         with col_back:
             if st.button(wz.get("step4", {}).get("back_button", "← Back")):
-                st.session_state.step = 2
+                us_set("step", 2)
                 st.rerun()
         with col_next:
             if st.button(s3.get("next_button", "Continue →"), type="primary"):
@@ -589,7 +596,7 @@ def _render_intake_wizard(wz: dict):
                 intake["oversight"] = sel_oversight
                 intake["annex1"] = sel_annex1
                 intake["function"] = sel_function
-                st.session_state.step = 4
+                us_set("step", 4)
                 st.rerun()
 
     # ── STEP 4: Evidence Upload & Intake Review ──────────────────────────────
@@ -601,12 +608,18 @@ def _render_intake_wizard(wz: dict):
         """, unsafe_allow_html=True)
 
         col_upload, col_paste = st.columns([1, 1], gap="large")
+        credits_ok = has_audit_credits()
+        if not credits_ok:
+            render_locked_description_notice()
+            render_stripe_paywall(context="system description & evidence intake")
+
         with col_upload:
             wizard_file = st.file_uploader(
                 s4.get("upload_label", "Drop a file (TXT or PDF)"),
                 type=["txt", "pdf"],
                 key="wizard_uploader",
                 help=s4.get("upload_help", ""),
+                disabled=not credits_ok,
             )
             if wizard_file is not None:
                 try:
@@ -643,8 +656,10 @@ def _render_intake_wizard(wz: dict):
                     "optimization tool. Human-in-the-loop workflows default safely to "
                     "Minimal Risk under the Act."
                 ),
+                disabled=not credits_ok,
             )
-            intake["description"] = pasted_val
+            if credits_ok:
+                intake["description"] = pasted_val
 
         # ── Live classification preview (deterministic statutory cascade) ─────
         preview = classify_risk(intake)
@@ -682,7 +697,7 @@ def _render_intake_wizard(wz: dict):
         col_back, col_done = st.columns([1, 5])
         with col_back:
             if st.button(s4.get("back_button", "← Back")):
-                st.session_state.step = 3
+                us_set("step", 3)
                 st.rerun()
         with col_done:
             if st.button(s4.get("confirm_button", "✓ Confirm Intake"), type="primary"):
@@ -692,10 +707,15 @@ def _render_intake_wizard(wz: dict):
 
 def _render_evidence_vault(ev: dict):
     _section_header(ev.get("label", ""), ev.get("title", ""), ev.get("sub", ""))
+    credits_ok = has_audit_credits()
+    if not credits_ok:
+        render_locked_description_notice()
+        render_stripe_paywall(context="evidence vault")
     extra_file = st.file_uploader(
         ev.get("upload_label", "Upload additional documentation (TXT / PDF)"),
         type=["txt", "pdf"],
         key="tab2_uploader",
+        disabled=not credits_ok,
     )
     if extra_file:
         st.success(ev.get("upload_success", "Document cached."))
@@ -705,20 +725,22 @@ def _render_conformity_assessment(assess: dict, cc: dict):
     _section_header(assess.get("label", ""), assess.get("title", ""),
                     assess.get("sub", ""))
 
-    if 'audit_complete' not in st.session_state:
-        st.session_state.audit_complete = False
-    if 'report_markdown' not in st.session_state:
-        st.session_state.report_markdown = ""
-    if 'pdf_data_bytes' not in st.session_state:
-        st.session_state.pdf_data_bytes = None
+    if not us_contains("audit_complete"):
+        us_set("audit_complete", False)
+    if not us_contains("report_markdown"):
+        us_set("report_markdown", "")
+    if not us_contains("pdf_data_bytes"):
+        us_set("pdf_data_bytes", None)
 
-    if st.button(assess.get("run_button", "Run Compliance Audit"), type="primary"):
-        st.session_state.audit_complete = False
-        st.session_state.report_markdown = ""
-        st.session_state.pdf_data_bytes = None
+    if not has_audit_credits():
+        render_stripe_paywall(context="conformity assessment")
+    elif st.button(assess.get("run_button", "Run Compliance Audit"), type="primary"):
+        us_set("audit_complete", False)
+        us_set("report_markdown", "")
+        us_set("pdf_data_bytes", None)
 
         client = get_gemini_client()
-        intake = st.session_state.get("intake", {})
+        intake = us_get("intake", {})
         if client is None:
             st.error(assess.get("missing_key_error", "Missing GEMINI_API_KEY."))
         elif not intake.get("industry"):
@@ -726,7 +748,7 @@ def _render_conformity_assessment(assess: dict, cc: dict):
         else:
             _run_audit_pipeline(client, intake, assess)
 
-    if st.session_state.audit_complete:
+    if us_get("audit_complete"):
         _render_command_center(cc)
 
 
@@ -971,11 +993,11 @@ def _run_audit_pipeline(client, intake: dict, assess: dict):
 
     if final_report_text and action_plan_text:
         pathway_md = "\n".join(f"1. {s}" for s in classification.decision_path)
-        st.session_state.report_markdown = (
+        us_set("report_markdown", (
             f"### Statutory Decision Pathway (deterministic)\n{pathway_md}\n\n"
             f"{final_report_text}\n\n## Engineering Action Plan\n{action_plan_text}"
-        )
-        st.session_state.pdf_data_bytes = generate_pdf_report(
+        ))
+        pdf_bytes = generate_pdf_report(
             final_report_text,
             classification=classification,
             annex_iv_findings=annex_iv_findings,
@@ -987,22 +1009,30 @@ def _run_audit_pipeline(client, intake: dict, assess: dict):
             legal_narrative=final_report_text,
             action_plan=action_plan_text,
         )
-        st.session_state.risk_tier = system_risk_status
-        st.session_state.risk_citation = risk_citation
-        st.session_state.audit_date = date.today().isoformat()
-        # Reset the obligations sheet so a fresh audit repopulates it
-        st.session_state.pop("obligations_df", None)
-        st.session_state.audit_complete = True
-        st.rerun()
+        us_set("pdf_data_bytes", pdf_bytes)
+        us_set("risk_tier", system_risk_status)
+        us_set("risk_citation", risk_citation)
+        us_set("audit_date", date.today().isoformat())
+        us_pop("obligations_df", None)
+
+        uid = current_user_id()
+        if uid and not deduct_audit_credit(uid, 1):
+            st.error(
+                "PDF generated but the audit credit could not be deducted. "
+                "Please contact support."
+            )
+        else:
+            us_set("audit_complete", True)
+            st.rerun()
 
 
 def _render_command_center(cc: dict):
     """Post-assessment governance workspace: overview, obligations, calendar."""
-    intake_done = st.session_state.get("intake", {})
-    tier_done = st.session_state.get("risk_tier", "—")
-    citation_done = st.session_state.get("risk_citation", "—")
+    intake_done = us_get("intake", {})
+    tier_done = us_get("risk_tier", "—")
+    citation_done = us_get("risk_citation", "—")
     try:
-        audit_dt = date.fromisoformat(st.session_state.get("audit_date", ""))
+        audit_dt = date.fromisoformat(us_get("audit_date", ""))
     except ValueError:
         audit_dt = date.today()
 
@@ -1019,9 +1049,9 @@ def _render_command_center(cc: dict):
         ov2.metric("Primary Citation", citation_done)
         ov3.metric("Assessment Date", audit_dt.strftime("%d %b %Y"))
 
-        st.markdown(st.session_state.report_markdown)
+        st.markdown(us_get("report_markdown", ""))
 
-        pdf_bytes = st.session_state.get("pdf_data_bytes")
+        pdf_bytes = us_get("pdf_data_bytes")
         if pdf_bytes:
             st.download_button(
                 label=cc.get(
@@ -1042,13 +1072,13 @@ def _render_command_center(cc: dict):
         <div class="section-sub">{cc.get("obligations_sub", "")}</div>
         """, unsafe_allow_html=True)
 
-        if "obligations_df" not in st.session_state:
-            st.session_state.obligations_df = build_obligations_register(
+        if not us_contains("obligations_df"):
+            us_set("obligations_df", build_obligations_register(
                 intake_done, tier_done
-            )
+            ))
 
         edited_df = st.data_editor(
-            st.session_state.obligations_df,
+            us_get("obligations_df"),
             key="obligations_editor",
             use_container_width=True,
             hide_index=True,
@@ -1070,7 +1100,7 @@ def _render_command_center(cc: dict):
                     "Notes", help="Free-text compliance log", width="medium"),
             },
         )
-        st.session_state.obligations_df = edited_df
+        us_set("obligations_df", edited_df)
 
         total = len(edited_df)
         compliant = int((edited_df["Status"] == "Compliant").sum())
