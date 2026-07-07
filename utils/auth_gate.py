@@ -15,6 +15,7 @@ import streamlit as st
 import streamlit_authenticator as stauth
 import yaml
 
+from utils.auth_session import AUTHENTICATOR_STATE_KEY
 from utils.credential_store import (
     load_merged_credentials,
     register_runtime_user,
@@ -25,7 +26,7 @@ from utils.user_session import set_authenticated_user
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _AUTH_CONFIG_PATH = _PROJECT_ROOT / "config" / "auth_config.yaml"
-_AUTH_STATE_KEY = "_traceact_authenticator"
+_AUTH_STATE_KEY = AUTHENTICATOR_STATE_KEY
 _OPEN_REGISTRATION = object()
 
 

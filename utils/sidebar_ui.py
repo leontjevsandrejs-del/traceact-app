@@ -8,7 +8,7 @@ from datetime import datetime
 
 import streamlit as st
 
-from utils.auth_gate import get_sidebar_authenticator
+from utils.auth_session import AUTHENTICATOR_STATE_KEY
 from utils.tenant_db import get_company_profile, get_purchased_audits
 from utils.user_session import current_user_id
 
@@ -84,9 +84,10 @@ def render_enterprise_sidebar() -> None:
 
         st.markdown('<div class="sidebar-logout-spacer"></div>', unsafe_allow_html=True)
 
-        authenticator = get_sidebar_authenticator()
-        authenticator.logout(
-            button_name="Sign Out",
-            location="sidebar",
-            key="TraceActLogout",
-        )
+        authenticator = st.session_state.get(AUTHENTICATOR_STATE_KEY)
+        if authenticator is not None:
+            authenticator.logout(
+                button_name="Sign Out",
+                location="sidebar",
+                key="TraceActLogout",
+            )
