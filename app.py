@@ -12,9 +12,9 @@ import os
 import streamlit as st
 from dotenv import load_dotenv
 
-from utils.billing_ui import sync_credit_count
-from utils.sidebar_ui import render_enterprise_sidebar
-from ui_layouts import render_workspace_engine, render_legal_hub
+from utils.payment_return import handle_stripe_return_or_continue
+from utils.secure_session import current_secure_session
+from utils.user_session import activate_workspace_user
 
 load_dotenv()
 
@@ -25,6 +25,18 @@ st.set_page_config(
     layout="centered",
     initial_sidebar_state="expanded",
 )
+
+# ── Stripe post-payment activation gate ───────────────────────────────────────
+if not handle_stripe_return_or_continue():
+    st.stop()
+
+_secure = current_secure_session()
+if _secure:
+    activate_workspace_user(_secure["user_id"], _secure["email"])
+
+from utils.billing_ui import sync_credit_count
+from utils.sidebar_ui import render_enterprise_sidebar
+from ui_layouts import render_workspace_engine, render_legal_hub
 
 sync_credit_count()
 

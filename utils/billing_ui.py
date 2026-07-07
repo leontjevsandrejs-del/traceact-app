@@ -9,16 +9,33 @@ import os
 import streamlit as st
 import streamlit.components.v1 as components
 
+from utils.draft_store import create_draft, draft_snapshot_for_session
 from utils.tenant_db import get_audit_credits
 from utils.user_session import current_user_id
 
 DESCRIPTION_WIDGET_KEY = "system_description_input"
 
 
-def stripe_checkout_url() -> str:
-    return os.getenv(
+def stripe_checkout_url(draft_id: str | None = None) -> str:
+    base = os.getenv(
         "STRIPE_CHECKOUT_URL",
         "https://buy.stripe.com/test_traceact_audit_credits",
+    )
+    if not draft_id:
+        return base
+    sep = "&" if "?" in base else "?"
+    return f"{base}{sep}client_reference_id={draft_id}"
+
+
+def stripe_success_url_template() -> str:
+    """
+    Configure this URL in the Stripe Checkout success redirect:
+
+    ``?payment=success&draft_id={CLIENT_REFERENCE_ID}&email={CUSTOMER_EMAIL}``
+    """
+    return os.getenv(
+        "STRIPE_SUCCESS_URL",
+        "?payment=success&draft_id={CLIENT_REFERENCE_ID}&email={CUSTOMER_EMAIL}",
     )
 
 
@@ -65,7 +82,8 @@ def render_certified_report_paywall() -> None:
         use_container_width=True,
         key="buy_certified_audit_report",
     ):
-        checkout = stripe_checkout_url()
+        draft_id = create_draft(draft_snapshot_for_session())
+        checkout = stripe_checkout_url(draft_id)
         components.html(
             f'<script>window.top.location.href = "{checkout}";</script>',
             height=0,

@@ -9,7 +9,7 @@ from datetime import datetime
 import streamlit as st
 
 from utils.audit_archive import get_purchased_audits
-from utils.user_session import current_user_id, guest_user_email
+from utils.user_session import current_user_id, current_user_email, is_activated_user
 
 
 def _format_generation_date(iso_date: str) -> str:
@@ -22,11 +22,18 @@ def _format_generation_date(iso_date: str) -> str:
 def render_enterprise_sidebar() -> None:
     """Permanent corporate workspace card and certified report library."""
     uid = current_user_id()
-    email = guest_user_email()
+    email = current_user_email()
+
+    if is_activated_user():
+        title = "🏢 Traceact Corporate Workspace"
+        subtitle = f"👤 {email}"
+    else:
+        title = "🏢 Traceact Corporate Workspace"
+        subtitle = "👤 Auditor Session"
 
     with st.sidebar:
-        st.markdown("### 🏢 Traceact Corporate Workspace")
-        st.caption("👤 Auditor Session")
+        st.markdown(f"### {title}")
+        st.caption(subtitle)
         st.divider()
 
         st.markdown("#### 📂 Certified Report Library")
