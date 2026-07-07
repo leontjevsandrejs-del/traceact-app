@@ -8,8 +8,8 @@ from datetime import datetime
 
 import streamlit as st
 
+from utils.audit_archive import get_purchased_audits
 from utils.auth_session import AUTHENTICATOR_STATE_KEY
-from utils.tenant_db import get_company_profile, get_purchased_audits
 from utils.user_session import current_user_id
 
 
@@ -20,13 +20,21 @@ def _format_generation_date(iso_date: str) -> str:
         return iso_date
 
 
+def _load_company_profile(uid: str):
+    try:
+        from utils.tenant_db import get_company_profile
+        return get_company_profile(uid)
+    except ImportError:
+        return None
+
+
 def render_enterprise_sidebar() -> None:
     """Corporate account card, certified report library, and logout."""
     uid = current_user_id()
     if not uid:
         return
 
-    profile = get_company_profile(uid)
+    profile = _load_company_profile(uid)
     company = profile.company_name if profile else uid.replace("_", " ").title()
     email = (
         st.session_state.get("email")
