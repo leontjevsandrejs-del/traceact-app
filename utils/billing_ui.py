@@ -7,7 +7,7 @@ from __future__ import annotations
 import streamlit as st
 
 from utils.draft_store import ensure_session_draft_id, persist_session_draft
-from utils.stripe_checkout import build_payment_link_url
+from utils.stripe_config import get_stripe_payment_link
 from utils.user_session import us_get, us_set
 
 DESCRIPTION_WIDGET_KEY = "system_description_input"
@@ -68,14 +68,16 @@ def render_certified_assessment_paywall() -> None:
 
     draft_id = ensure_session_draft_id()
     persist_session_draft()
-    checkout_url = build_payment_link_url(draft_id)
 
-    st.link_button(
-        "💳 Run Certified Assessment — 0.01 €",
-        checkout_url,
-        use_container_width=True,
-        type="primary",
-    )
+    payment_link = get_stripe_payment_link()
+    checkout_url = f"{payment_link}?client_reference_id={st.session_state['draft_id']}"
+
+    with st.container(border=True):
+        st.link_button(
+            "💳 Run Certified Assessment — 0.01 €",
+            checkout_url,
+            use_container_width=True,
+        )
 
 
 def render_certified_report_paywall() -> None:

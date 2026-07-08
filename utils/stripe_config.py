@@ -60,24 +60,22 @@ def get_stripe_price_id() -> str:
     return (price_id or "").strip()
 
 
-def get_stripe_payment_link_url() -> str:
+def get_stripe_payment_link() -> str:
     """
-    Resolve the static Stripe Payment Link URL.
+    Resolve the static Stripe Payment Link URL from ``STRIPE_PAYMENT_LINK``.
 
-    1. ``st.secrets.get("STRIPE_PAYMENT_LINK_URL")`` or ``STRIPE_CHECKOUT_URL``
-    2. ``os.getenv(...)`` after ``load_dotenv()`` (local)
+    1. ``os.getenv("STRIPE_PAYMENT_LINK")`` after ``load_dotenv()`` (local)
+    2. ``st.secrets.get("STRIPE_PAYMENT_LINK")`` (Streamlit Cloud)
     """
-    link = None
-    for secret_key in ("STRIPE_PAYMENT_LINK_URL", "STRIPE_CHECKOUT_URL"):
+    payment_link = os.getenv("STRIPE_PAYMENT_LINK")
+    if not payment_link:
         try:
-            link = st.secrets.get(secret_key)
+            payment_link = st.secrets.get("STRIPE_PAYMENT_LINK")
         except Exception:
-            link = None
-        if link:
-            break
-    if not link:
-        link = os.getenv("STRIPE_PAYMENT_LINK_URL") or os.getenv(
-            "STRIPE_CHECKOUT_URL",
-            "https://buy.stripe.com/mock_link",
-        )
-    return (link or "").strip()
+            payment_link = None
+    return (payment_link or "https://buy.stripe.com/mock_link").strip()
+
+
+def get_stripe_payment_link_url() -> str:
+    """Back-compat alias for :func:`get_stripe_payment_link`."""
+    return get_stripe_payment_link()

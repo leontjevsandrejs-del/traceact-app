@@ -62,12 +62,19 @@ def _recover_draft_id_from_stripe(checkout_session_id: str) -> str | None:
 
 
 def restore_paid_draft(draft_id: str) -> bool:
-    """Load a paid draft snapshot into the active workspace."""
+    """Load a paid draft snapshot into the active workspace and queue auto-run."""
     draft = get_draft(draft_id)
     if not draft:
         return False
     snapshot = draft.get("snapshot") or {}
     _user_session().hydrate_workspace_from_snapshot(snapshot)
+
+    from utils.billing_ui import DESCRIPTION_WIDGET_KEY, ensure_description_widget_state
+
+    intake = snapshot.get("intake") or {}
+    ensure_description_widget_state(intake.get("description", ""))
+    st.session_state[DESCRIPTION_WIDGET_KEY] = intake.get("description", "")
+
     st.session_state["draft_id"] = draft_id
     mark_draft_paid(draft_id)
     mark_assessment_paid(auto_run=True)
@@ -78,9 +85,10 @@ def process_stripe_return() -> None:
     """
     Inbound Stripe recovery — call at the top of ``app.py``.
 
-    When ``payment=success`` is present, retrieves the Checkout Session from
-    Stripe, resolves ``client_reference_id`` to our draft id, hydrates the
-    workspace, unlocks the assessment pipeline, clears URL params, and reruns.
+    When ``payment=success`` is present, retrieves the Checkout Session via
+    ``STRIPE_SECRET_KEY``, unpacks ``client_reference_id``, re-hydrates intake
+    text from ``data/drafts.json``, unlocks Conformity Assessment, and queues
+    the multi-agent ReportLab PDF pipeline.
     """
     if st.query_params.get(PAYMENT_PARAM) != "success":
         return
