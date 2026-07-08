@@ -1,7 +1,7 @@
 """
 Centralised Gemini client and retry lane for TraceAct.
 
-All model calls use ``gemini-2.5-flash`` exclusively — no legacy fallbacks.
+All model calls use ``gemini-3.5-flash`` exclusively — no legacy fallbacks.
 """
 
 from __future__ import annotations
@@ -10,10 +10,10 @@ import os
 import time
 
 from google import genai
+from google.genai.errors import APIError, ClientError
 
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-3.5-flash"
 MAX_GEMINI_RETRIES = 3
-RETRY_PAUSE_SECONDS = 2
 
 
 def get_gemini_api_key() -> str | None:
@@ -30,6 +30,19 @@ def get_gemini_client() -> genai.Client | None:
     return genai.Client(api_key=api_key)
 
 
+def _is_transient_error(err: Exception) -> bool:
+    """Return True for retryable 503 / ResourceExhausted / overload conditions."""
+    if isinstance(err, (ClientError, APIError)):
+        status = getattr(err, "status_code", None) or getattr(err, "code", None)
+        if status in (429, 503, 504):
+            return True
+    err_upper = str(err).upper()
+    return any(
+        token in err_upper
+        for token in ("503", "429", "RESOURCE_EXHAUSTED", "UNAVAILABLE", "OVERLOADED")
+    )
+
+
 def _display_pipeline_error(err: Exception) -> None:
     try:
         import streamlit as st
@@ -41,11 +54,10 @@ def _display_pipeline_error(err: Exception) -> None:
 
 def call_gemini_with_retry(client, prompt, model_name: str | None = None) -> str:
     """
-    Execute a Gemini generate_content call with a linear retry loop.
+    Execute a Gemini generate_content call with exponential backoff retries.
 
-    Retries up to ``MAX_GEMINI_RETRIES`` times on any transient failure,
-    pausing ``RETRY_PAUSE_SECONDS`` between attempts. Uses only
-    ``gemini-2.5-flash`` — no model fallback.
+    Retries up to ``MAX_GEMINI_RETRIES`` times on transient 503 / overload
+    errors. Uses only ``gemini-3.5-flash`` — no model fallback.
     """
     model = model_name or GEMINI_MODEL
 
@@ -54,9 +66,14 @@ def call_gemini_with_retry(client, prompt, model_name: str | None = None) -> str
             result = client.models.generate_content(model=model, contents=prompt)
             return result.text
         except Exception as err:
+            if not _is_transient_error(err):
+                _display_pipeline_error(err)
+                raise err from err
+
             if attempt < MAX_GEMINI_RETRIES - 1:
-                time.sleep(RETRY_PAUSE_SECONDS)
+                time.sleep(2 ** (attempt + 1))
                 continue
+
             _display_pipeline_error(err)
             raise err from err
 
