@@ -5,14 +5,13 @@ Ingests every .txt AND .pdf file in knowledge_base/ (the Annex PDFs were
 previously ignored by the txt-only loader) and tags each document with a
 source header so agents can produce verifiable [source: ...] citations.
 
-PDFs are read through ``utils.pdf_reader`` (local ``pypdf`` for the static
-corpus; the Google Files API path is used for wizard evidence uploads).
-The corpus is cached at module level: extraction runs once per process.
+The corpus is cached at module level: PDF extraction runs once per process,
+not once per audit.
 """
 
 import os
 
-from utils.pdf_reader import extract_pdf_text
+from pypdf import PdfReader
 
 _CACHE: dict[str, str] = {}
 
@@ -33,36 +32,20 @@ def load_legal_knowledge_base(force_reload: bool = False) -> str:
         return ""
 
     sections = []
-    pdf_items: list[tuple[str, str]] = []
-
     for filename in sorted(os.listdir(kb_path)):
         filepath = os.path.join(kb_path, filename)
         text = ""
         try:
             if filename.lower().endswith(".txt"):
-                with open(filepath, "r", encoding="utf-8") as fh:
-                    text = fh.read().strip()
+                with open(filepath, "r", encoding="utf-8") as f:
+                    text = f.read().strip()
                 if text.startswith("[PLACEHOLDER]"):
                     continue
             elif filename.lower().endswith(".pdf"):
-                pdf_items.append((filename, filepath))
-                continue
-        except Exception:
-            continue
-        if text:
-            sections.append(
-                f"<<< SOURCE DOCUMENT: {filename} >>>\n{text}\n"
-                f"<<< END OF SOURCE: {filename} >>>"
-            )
-
-    for filename, filepath in pdf_items:
-        try:
-            # Static Annex PDFs: fast local extraction (no remote temp files).
-            text = extract_pdf_text(
-                filepath,
-                display_name=filename,
-                prefer_files_api=False,
-            )
+                reader = PdfReader(filepath)
+                text = "\n".join(
+                    (page.extract_text() or "") for page in reader.pages
+                ).strip()
         except Exception:
             continue
         if text:
