@@ -1,14 +1,12 @@
 """
-Stripe Checkout session creation — reads ``STRIPE_SECRET_KEY`` from root ``.env``.
+Stripe Checkout session creation — dual-environment key loading via ``stripe_config``.
 """
 
 from __future__ import annotations
 
 import os
 
-from dotenv import load_dotenv
-
-load_dotenv()
+from utils.stripe_config import configure_stripe_api_key
 
 DEFAULT_SUCCESS_URL = (
     "https://traceact-app.streamlit.app/?payment=success&draft_id={draft_id}"
@@ -17,17 +15,13 @@ DEFAULT_CANCEL_URL = "https://traceact-app.streamlit.app/"
 ASSESSMENT_PRICE_CENTS = 1  # 0.01 EUR
 
 
-def _stripe_secret_key() -> str:
-    return os.getenv("STRIPE_SECRET_KEY", "").strip()
-
-
 def create_checkout_session(draft_id: str) -> str | None:
     """
     Create a Stripe Checkout Session and return its hosted payment URL.
 
     Returns ``None`` when the secret key is missing or Stripe rejects the call.
     """
-    secret = _stripe_secret_key()
+    secret = configure_stripe_api_key()
     if not secret:
         return None
 
@@ -36,7 +30,6 @@ def create_checkout_session(draft_id: str) -> str | None:
     except ImportError:
         return None
 
-    stripe.api_key = secret
     success_url = os.getenv("STRIPE_SUCCESS_URL", DEFAULT_SUCCESS_URL).format(
         draft_id=draft_id,
     )

@@ -80,7 +80,8 @@ def render_certified_assessment_paywall() -> None:
         if not checkout_url:
             st.error(
                 "Stripe checkout could not be started. "
-                "Verify STRIPE_SECRET_KEY in the root .env file."
+                "Add STRIPE_SECRET_KEY to Streamlit secrets (Cloud) "
+                "or the root .env file (local)."
             )
             return
 
