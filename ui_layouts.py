@@ -46,10 +46,12 @@ from utils.report_gen import generate_pdf_report
 from utils.user_session import us_get, us_set, us_pop, us_contains, current_user_id, current_user_email
 from utils.tenant_db import deduct_audit_credit, archive_purchased_audit
 from utils.billing_ui import (
-    sync_credit_count,
+    consume_auto_run_assessment,
     ensure_description_widget_state,
+    is_assessment_paid,
+    render_certified_assessment_paywall,
+    sync_credit_count,
     sync_description_to_intake,
-    render_certified_report_paywall,
     DESCRIPTION_WIDGET_KEY,
 )
 
@@ -730,11 +732,26 @@ def _render_conformity_assessment(assess: dict, cc: dict):
 
     sync_credit_count()
     audit_complete = us_get("audit_complete")
-    has_credits = st.session_state.get("credit_count", 0) > 0
+    paid = is_assessment_paid()
 
-    if not has_credits and not audit_complete:
-        render_certified_report_paywall()
+    if not paid and not audit_complete:
+        render_certified_assessment_paywall()
         return
+
+    intake = us_get("intake", {})
+
+    if consume_auto_run_assessment() and not audit_complete:
+        client = get_gemini_client()
+        if client is None:
+            st.error(assess.get("missing_key_error", "Missing GEMINI_API_KEY."))
+        elif not intake.get("industry"):
+            st.error(assess.get("missing_intake_error", "Complete the wizard first."))
+        else:
+            us_set("audit_complete", False)
+            us_set("report_markdown", "")
+            us_set("pdf_data_bytes", None)
+            _run_audit_pipeline(client, intake, assess)
+            st.rerun()
 
     if not audit_complete and st.button(
         assess.get("run_button", "Run Compliance Audit"), type="primary"
@@ -744,7 +761,6 @@ def _render_conformity_assessment(assess: dict, cc: dict):
         us_set("pdf_data_bytes", None)
 
         client = get_gemini_client()
-        intake = us_get("intake", {})
         if client is None:
             st.error(assess.get("missing_key_error", "Missing GEMINI_API_KEY."))
         elif not intake.get("industry"):

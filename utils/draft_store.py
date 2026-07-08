@@ -92,6 +92,17 @@ def bind_draft_to_user(draft_id: str, user_id: str, email: str) -> bool:
     return True
 
 
+def mark_draft_paid(draft_id: str) -> bool:
+    registry = _load_registry()
+    row = registry.get(draft_id)
+    if not row:
+        return False
+    row["paid"] = True
+    row["paid_at"] = datetime.now(timezone.utc).isoformat()
+    _save_registry(registry)
+    return True
+
+
 def draft_snapshot_for_session() -> dict[str, Any]:
     """Collect the active guest workspace for Stripe checkout handoff."""
     from utils.user_session import us_get

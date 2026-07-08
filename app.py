@@ -22,14 +22,10 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ── Stripe post-payment activation gate ───────────────────────────────────────
-def _payment_gate_open() -> bool:
-    from utils.payment_return import handle_stripe_return_or_continue
-    return handle_stripe_return_or_continue()
+# ── Stripe inbound recovery (restores paid draft before workspace loads) ───────
+from utils.payment_return import process_stripe_return
 
-
-if not _payment_gate_open():
-    st.stop()
+process_stripe_return()
 
 from utils.secure_session import restore_workspace_identity
 
