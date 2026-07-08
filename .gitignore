@@ -1,0 +1,36 @@
+# Secrets and local env
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+
+# Build / packaging artifacts
+build/
+dist/
+Output/
+*.egg-info/
+*.egg
+
+# Streamlit / local runtime data
+.streamlit/secrets.toml
+data/drafts.json
+
+# IDE and OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Misc generated
+hash_verification.txt
+*.log
