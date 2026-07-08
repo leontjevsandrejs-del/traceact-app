@@ -59,12 +59,25 @@ def call_gemini_with_retry(client, prompt, model_name: str | None = None) -> str
     Retries up to ``MAX_GEMINI_RETRIES`` times on transient 503 / overload
     errors. Uses only ``gemini-3.5-flash`` — no model fallback.
     """
+    return call_gemini_generate_content_with_retry(
+        client,
+        contents=prompt,
+        model_name=model_name,
+    )
+
+
+def call_gemini_generate_content_with_retry(
+    client,
+    contents,
+    model_name: str | None = None,
+) -> str:
+    """Retry wrapper for arbitrary ``generate_content`` payloads (text or files)."""
     model = model_name or GEMINI_MODEL
 
     for attempt in range(MAX_GEMINI_RETRIES):
         try:
-            result = client.models.generate_content(model=model, contents=prompt)
-            return result.text
+            result = client.models.generate_content(model=model, contents=contents)
+            return result.text or ""
         except Exception as err:
             if not _is_transient_error(err):
                 _display_pipeline_error(err)

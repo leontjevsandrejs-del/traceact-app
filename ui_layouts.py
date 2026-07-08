@@ -14,8 +14,8 @@ Exports:
 import pandas as pd
 import streamlit as st
 from datetime import date, timedelta
-import pypdf
 
+from utils.pdf_reader import extract_pdf_text
 from utils.gemini_client import (
     call_gemini_with_retry,
     get_gemini_client,
@@ -322,17 +322,21 @@ def _process_step4_upload(wizard_file, intake: dict, s4: dict) -> None:
     try:
         wizard_file.seek(0)
         if wizard_file.name.lower().endswith(".pdf"):
-            reader = pypdf.PdfReader(wizard_file)
-            intake["evidence_text"] = "\n".join(
-                (page.extract_text() or "") for page in reader.pages
+            pdf_bytes = wizard_file.read()
+            intake["evidence_text"] = extract_pdf_text(
+                pdf_bytes,
+                display_name=wizard_file.name,
             )
         else:
+            wizard_file.seek(0)
             intake["evidence_text"] = wizard_file.read().decode(
                 "utf-8", errors="replace"
             )
+        us_set("intake", intake)
         st.success(s4.get("upload_success", "Document cached."))
     except Exception:
         intake["evidence_text"] = ""
+        us_set("intake", intake)
         st.error(s4.get("upload_error", "Could not extract text."))
 
 
