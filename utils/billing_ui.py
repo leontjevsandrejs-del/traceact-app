@@ -13,6 +13,12 @@ from utils.user_session import us_get, us_set, current_user_email, current_user_
 DESCRIPTION_WIDGET_KEY = "system_description_input"
 _PAID_FLAG = "assessment_paid"
 _AUTO_RUN_FLAG = "auto_run_assessment"
+WORKSPACE_TAB_KEY = "workspace_active_tab"
+
+
+def focus_conformity_assessment_tab(tab_label: str = "Conformity Assessment") -> None:
+    """Select the Conformity Assessment workspace after Stripe payment return."""
+    st.session_state[WORKSPACE_TAB_KEY] = tab_label
 
 
 def is_assessment_paid() -> bool:

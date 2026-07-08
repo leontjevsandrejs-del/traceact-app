@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from utils.billing_ui import mark_assessment_paid
+from utils.billing_ui import mark_assessment_paid, focus_conformity_assessment_tab
 from utils.draft_store import get_draft, mark_draft_paid
 from utils.stripe_config import configure_stripe_api_key
 
@@ -115,6 +115,7 @@ def process_stripe_return() -> None:
         )
         return
 
+    focus_conformity_assessment_tab()
     st.query_params.clear()
     st.rerun()
 
