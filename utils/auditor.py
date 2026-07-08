@@ -9,6 +9,7 @@ via utils.annex_iv, and the cite-your-source constraint on the model call.
 
 from google import genai
 
+from utils.gemini_client import GEMINI_MODEL, call_gemini_with_retry
 from utils.knowledge import load_legal_knowledge_base
 from utils.risk_engine import classify_risk
 from utils.annex_iv import (
@@ -24,8 +25,13 @@ def get_knowledge_base_text():
     return load_legal_knowledge_base()
 
 
-def run_audit(client: genai.Client, model_name: str, manual_triage_data,
-              evidence_text, intake: dict | None = None):
+def run_audit(
+    client: genai.Client,
+    manual_triage_data,
+    evidence_text,
+    intake: dict | None = None,
+    model_name: str | None = None,
+):
     """
     Run a grounded single-shot audit.
 
@@ -108,19 +114,10 @@ Output format:
 """
 
     try:
-        response = client.models.generate_content(
-            model=model_name,
-            contents=prompt,
+        return call_gemini_with_retry(
+            client,
+            prompt,
+            model_name=model_name or GEMINI_MODEL,
         )
-        return response.text
-    except Exception as e:
-        try:
-            available_models = [m.name for m in client.models.list()]
-            models_str = "\n".join([f"- `{m}`" for m in available_models])
-            return (
-                f"An error occurred during the audit: {str(e)}\n\n"
-                f"### Debug Info: Available models for your API key:\n{models_str}\n\n"
-                f"Please update GEMINI_MODEL in `app.py` to one of the above."
-            )
-        except Exception as list_err:
-            return f"An error occurred during the audit: {str(e)}\n\n(Failed to list models: {str(list_err)})"
+    except Exception as err:
+        return f"An error occurred during the audit: {err}"

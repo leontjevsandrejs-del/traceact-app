@@ -11,15 +11,15 @@ Exports:
     render_legal_hub()         — GDPR Article 28 agreements + corporate imprint.
 """
 
-import os
-import time
-
 import pandas as pd
 import streamlit as st
 from datetime import date, timedelta
-from google import genai
-from google.genai.errors import APIError, ClientError
 import pypdf
+
+from utils.gemini_client import (
+    call_gemini_with_retry,
+    get_gemini_client,
+)
 
 from utils.risk_engine import (
     classify_risk,
@@ -54,9 +54,6 @@ from utils.billing_ui import (
     DESCRIPTION_WIDGET_KEY,
 )
 
-GEMINI_MODEL = "gemini-2.5-flash"
-MAX_GEMINI_ATTEMPTS = 3
-
 ARTICLE_50_GUARDRAIL = """---
 ARTICLE 50 TEXT-GENERATION ANALYSIS RULE:
 When evaluating an AI system that generates text content under Article 50:
@@ -84,83 +81,6 @@ def _c(*keys, default=""):
         else:
             return default
     return node
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# Gemini client & resilient retry lane
-# ══════════════════════════════════════════════════════════════════════════════
-
-def get_gemini_api_key() -> str | None:
-    key = os.getenv("GEMINI_API_KEY", "").strip().strip("\"'")
-    if not key or key == "YOUR_ACTUAL_API_KEY_HERE":
-        return None
-    return key
-
-
-def get_gemini_client() -> genai.Client | None:
-    api_key = get_gemini_api_key()
-    if not api_key:
-        return None
-    return genai.Client(api_key=api_key)
-
-
-def _is_overload_error(err: Exception) -> bool:
-    """Return True for retryable 503 / ResourceExhausted conditions."""
-    if isinstance(err, (ClientError, APIError)):
-        status = getattr(err, "status_code", None) or getattr(err, "code", None)
-        if status in (503, 429):
-            return True
-    err_upper = str(err).upper()
-    return any(
-        token in err_upper
-        for token in ("503", "RESOURCE_EXHAUSTED", "UNAVAILABLE", "OVERLOADED")
-    )
-
-
-def call_gemini_with_retry(client, prompt, model_name=None):
-    """
-    Call Gemini with up to 3 attempts and exponential backoff on overload errors.
-
-    Retries exclusively on ``gemini-2.5-flash`` — no model fallback.
-    """
-    model = model_name or GEMINI_MODEL
-    last_err = None
-
-    for attempt in range(MAX_GEMINI_ATTEMPTS):
-        try:
-            result = client.models.generate_content(
-                model=model, contents=prompt
-            )
-            return result.text
-
-        except (ClientError, APIError, Exception) as err:
-            last_err = err
-
-            if not _is_overload_error(err):
-                raise
-
-            if attempt >= MAX_GEMINI_ATTEMPTS - 1:
-                break
-
-            delay = 2 ** (attempt + 1)
-            wait_box = st.empty()
-            for remaining in range(delay, 0, -1):
-                wait_box.warning(
-                    f"⏳ **{model}** is temporarily unavailable (503). "
-                    f"Attempt {attempt + 1}/{MAX_GEMINI_ATTEMPTS} failed — "
-                    f"retrying in **{remaining}s**."
-                )
-                time.sleep(1)
-            wait_box.empty()
-
-    st.error(
-        f"**Gemini API unavailable after {MAX_GEMINI_ATTEMPTS} attempts.**\n\n"
-        f"The model is currently overloaded. Please wait 60–90 seconds and "
-        f"click **Run Compliance Audit** again, or check your quota at "
-        f"[Google AI Studio](https://aistudio.google.com/app/u/0/plan_information).\n\n"
-        f"Last error: `{last_err}`"
-    )
-    return None
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -832,8 +752,6 @@ def _run_audit_pipeline(client, intake: dict, assess: dict):
                 "Output only the structured technical profile. Be precise and concise."
             )
             profile_a = call_gemini_with_retry(client, prompt_a)
-            if not profile_a:
-                raise RuntimeError("Agent A returned no output — pipeline halted.")
 
         # ── Agent B: Regulatory Cross-Examiner (grounded findings) ───────────
         with st.spinner(assess.get("spinner_b", "Agent B is auditing...")):
@@ -886,8 +804,6 @@ def _run_audit_pipeline(client, intake: dict, assess: dict):
                 "that remain open."
             )
             findings_b = call_gemini_with_retry(client, prompt_b)
-            if not findings_b:
-                raise RuntimeError("Agent B returned no output — pipeline halted.")
 
         # ── Agent C: Executive Auditor Draftsman (Tier 2 narrative) ──────────
         with st.spinner(assess.get("spinner_c", "Agent C is drafting...")):
@@ -931,8 +847,6 @@ def _run_audit_pipeline(client, intake: dict, assess: dict):
                 "(1.X / 1.X.X, 2.X) as a hard prefix. No plain bullets in Sections 1-2."
             )
             final_report_text = call_gemini_with_retry(client, prompt_c)
-            if not final_report_text:
-                raise RuntimeError("Agent C returned no output — pipeline halted.")
 
         # ── Agent C (second pass): Tier 4 Engineering Action Plan ────────────
         with st.spinner(assess.get("spinner_d",
@@ -963,11 +877,9 @@ def _run_audit_pipeline(client, intake: dict, assess: dict):
                 f"SECTOR MANDATE to weave into the phases: {sector_mitigation}"
             )
             action_plan_text = call_gemini_with_retry(client, prompt_d)
-            if not action_plan_text:
-                raise RuntimeError("Agent C (action plan) returned no output — pipeline halted.")
 
-    except Exception as pipeline_err:
-        st.error(f"Multi-Agent Pipeline Failure. Details: {pipeline_err}")
+    except Exception:
+        return
 
     if final_report_text and action_plan_text:
         pathway_md = "\n".join(f"1. {s}" for s in classification.decision_path)
