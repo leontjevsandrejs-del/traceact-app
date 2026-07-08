@@ -22,6 +22,12 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ── Persistent session draft (mirrored to data/drafts.json) ───────────────────
+from utils.draft_store import ensure_session_draft_id, persist_session_draft
+
+ensure_session_draft_id()
+persist_session_draft()
+
 # ── Stripe inbound recovery (restores paid draft before workspace loads) ───────
 from utils.payment_return import process_stripe_return
 

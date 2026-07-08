@@ -12,6 +12,8 @@ from utils.stripe_config import configure_stripe_api_key
 
 PAYMENT_PARAM = "payment"
 DRAFT_ID_PARAM = "draft_id"
+SESSION_ID_PARAM = "session_id"
+CHECKOUT_SESSION_PARAM = "checkout_session_id"
 
 
 def _user_session():
@@ -19,22 +21,44 @@ def _user_session():
     return user_session
 
 
-def _verify_checkout_paid(draft_id: str) -> bool:
-    """Optional Stripe session verification when ``session_id`` is in the URL."""
-    session_id = (st.query_params.get("session_id") or "").strip()
-    secret = configure_stripe_api_key()
-    if not session_id or not secret:
-        return True
+def _checkout_session_id_from_query() -> str:
+    return (
+        st.query_params.get(SESSION_ID_PARAM)
+        or st.query_params.get(CHECKOUT_SESSION_PARAM)
+        or ""
+    ).strip()
+
+
+def _recover_draft_id_from_stripe(checkout_session_id: str) -> str | None:
+    """Fetch Checkout Session and read ``client_reference_id`` as draft id."""
+    if not configure_stripe_api_key():
+        st.error(
+            "Stripe payment could not be verified. "
+            "Add STRIPE_SECRET_KEY to Streamlit secrets or the root .env file."
+        )
+        return None
+
     try:
         import stripe  # type: ignore[import-untyped]
+    except ImportError:
+        st.error("Stripe Python package is not installed.")
+        return None
 
-        session = stripe.checkout.Session.retrieve(session_id)
-        if session.payment_status != "paid":
-            return False
-        meta_draft = (session.metadata or {}).get("draft_id") or session.client_reference_id
-        return (meta_draft or "").strip() == draft_id
-    except Exception:
-        return False
+    try:
+        session = stripe.checkout.Session.retrieve(checkout_session_id)
+    except stripe.error.StripeError as err:
+        st.error(f"Stripe Error: {err.user_message or err}")
+        return None
+
+    if session.payment_status != "paid":
+        st.error("Stripe reports that this checkout session is not paid yet.")
+        return None
+
+    recovered = (session.client_reference_id or "").strip()
+    if not recovered:
+        meta = session.metadata or {}
+        recovered = (meta.get("draft_id") or "").strip()
+    return recovered or None
 
 
 def restore_paid_draft(draft_id: str) -> bool:
@@ -44,6 +68,7 @@ def restore_paid_draft(draft_id: str) -> bool:
         return False
     snapshot = draft.get("snapshot") or {}
     _user_session().hydrate_workspace_from_snapshot(snapshot)
+    st.session_state["draft_id"] = draft_id
     mark_draft_paid(draft_id)
     mark_assessment_paid(auto_run=True)
     return True
@@ -53,22 +78,29 @@ def process_stripe_return() -> None:
     """
     Inbound Stripe recovery — call at the top of ``app.py``.
 
-    When ``payment=success`` and ``draft_id`` are present, hydrates the saved
-    guest intake, unlocks the assessment pipeline, clears URL params, and reruns.
+    When ``payment=success`` is present, retrieves the Checkout Session from
+    Stripe, resolves ``client_reference_id`` to our draft id, hydrates the
+    workspace, unlocks the assessment pipeline, clears URL params, and reruns.
     """
     if st.query_params.get(PAYMENT_PARAM) != "success":
         return
 
-    draft_id = (st.query_params.get(DRAFT_ID_PARAM) or "").strip()
-    if not draft_id:
-        st.error("Payment succeeded but no draft_id was supplied in the return URL.")
+    checkout_session_id = _checkout_session_id_from_query()
+    recovered_draft_id = None
+
+    if checkout_session_id:
+        recovered_draft_id = _recover_draft_id_from_stripe(checkout_session_id)
+    else:
+        recovered_draft_id = (st.query_params.get(DRAFT_ID_PARAM) or "").strip() or None
+
+    if not recovered_draft_id:
+        st.error(
+            "Payment succeeded but no checkout session or draft id was found. "
+            "Confirm your Payment Link success URL includes the session id."
+        )
         return
 
-    if not _verify_checkout_paid(draft_id):
-        st.error("Stripe payment could not be verified for this session.")
-        return
-
-    if not restore_paid_draft(draft_id):
+    if not restore_paid_draft(recovered_draft_id):
         st.error(
             "Your payment succeeded but the saved assessment draft was not found. "
             "Please contact support with your receipt."

@@ -82,6 +82,15 @@ def us_get(key: str, default=None):
 
 def us_set(key: str, value) -> None:
     _bucket()[key] = value
+    if key in {
+        "intake", "step", "report_markdown", "pdf_data_bytes",
+        "audit_complete", "risk_tier", "risk_citation", "audit_date",
+    }:
+        try:
+            from utils.draft_store import persist_session_draft
+            persist_session_draft()
+        except Exception:
+            pass
 
 
 def us_pop(key: str, default=None):

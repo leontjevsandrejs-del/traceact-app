@@ -1,14 +1,13 @@
 """
-Paywall UI helpers — Stripe checkout gate for the Conformity Assessment tab.
+Paywall UI helpers — static Stripe Payment Link gate for Conformity Assessment.
 """
 
 from __future__ import annotations
 
 import streamlit as st
-import streamlit.components.v1 as components
 
-from utils.draft_store import create_draft, draft_snapshot_for_session
-from utils.stripe_checkout import create_checkout_session
+from utils.draft_store import ensure_session_draft_id, persist_session_draft
+from utils.stripe_checkout import build_payment_link_url
 from utils.user_session import us_get, us_set
 
 DESCRIPTION_WIDGET_KEY = "system_description_input"
@@ -50,6 +49,8 @@ def ensure_description_widget_state(fallback: str = "") -> None:
 
 def sync_description_to_intake(intake: dict) -> None:
     intake["description"] = st.session_state.get(DESCRIPTION_WIDGET_KEY, "")
+    us_set("intake", intake)
+    persist_session_draft()
 
 
 def render_certified_assessment_paywall() -> None:
@@ -65,28 +66,18 @@ def render_certified_assessment_paywall() -> None:
         unsafe_allow_html=True,
     )
 
-    if st.button(
+    draft_id = ensure_session_draft_id()
+    persist_session_draft()
+    checkout_url = build_payment_link_url(draft_id)
+
+    st.link_button(
         "💳 Run Certified Assessment — 0.01 €",
-        type="primary",
+        checkout_url,
         use_container_width=True,
-        key="run_certified_assessment_checkout",
-    ):
-        intake = us_get("intake", {})
-        sync_description_to_intake(intake)
-        us_set("intake", intake)
-
-        draft_id = create_draft(draft_snapshot_for_session())
-        checkout_url = create_checkout_session(draft_id)
-        if not checkout_url:
-            return
-
-        components.html(
-            f'<script>window.top.location.href = "{checkout_url}";</script>',
-            height=0,
-        )
+        type="primary",
+    )
 
 
-# Back-compat alias used by older imports
 def render_certified_report_paywall() -> None:
     render_certified_assessment_paywall()
 
