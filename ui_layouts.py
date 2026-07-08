@@ -45,7 +45,6 @@ from utils.report_gen import generate_pdf_report
 from utils.user_session import us_get, us_set, us_pop, us_contains, current_user_id, current_user_email
 from utils.tenant_db import archive_purchased_audit
 from utils.billing_ui import (
-    WORKSPACE_TAB_KEY,
     consume_auto_run_assessment,
     consume_audit_entitlement,
     ensure_description_widget_state,
@@ -303,26 +302,17 @@ def _question(label: str, hint: str, spaced: bool = False) -> None:
 def render_workspace_engine():
     """Multi-agent questionnaire wizard, compliance tracking, and PDF hooks."""
     ws = _c("workspace", default={})
-    tab_labels = list(_c("workspace", "tabs", default=[
-        "System Triage",
-        "Evidence Vault",
-        "Conformity Assessment",
-    ]))
-    conformity_tab = tab_labels[2] if len(tab_labels) > 2 else "Conformity Assessment"
+    tab1, tab2, tab3 = st.tabs(_c("workspace", "tabs",
+                                  default=["System Triage", "Evidence Vault",
+                                           "Conformity Assessment"]))
 
-    active_tab = st.radio(
-        "Workspace section",
-        options=tab_labels,
-        horizontal=True,
-        label_visibility="collapsed",
-        key=WORKSPACE_TAB_KEY,
-    )
-
-    if active_tab == tab_labels[0]:
+    with tab1:
         _render_intake_wizard(ws.get("wizard", {}))
-    elif active_tab == tab_labels[1]:
+
+    with tab2:
         _render_evidence_vault(ws.get("evidence", {}))
-    elif active_tab == conformity_tab:
+
+    with tab3:
         _render_conformity_assessment(ws.get("assessment", {}),
                                       ws.get("command_center", {}))
 
