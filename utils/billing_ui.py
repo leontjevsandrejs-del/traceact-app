@@ -78,11 +78,6 @@ def render_certified_assessment_paywall() -> None:
         draft_id = create_draft(draft_snapshot_for_session())
         checkout_url = create_checkout_session(draft_id)
         if not checkout_url:
-            st.error(
-                "Stripe checkout could not be started. "
-                "Add STRIPE_SECRET_KEY to Streamlit secrets (Cloud) "
-                "or the root .env file (local)."
-            )
             return
 
         components.html(

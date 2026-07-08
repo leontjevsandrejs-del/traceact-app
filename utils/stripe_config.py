@@ -41,3 +41,20 @@ def configure_stripe_api_key() -> str:
     except ImportError:
         return ""
     return secret
+
+
+def get_stripe_price_id() -> str:
+    """
+    Resolve ``STRIPE_PRICE_ID`` for local and Streamlit Cloud runtimes.
+
+    1. ``st.secrets.get("STRIPE_PRICE_ID")`` (Cloud)
+    2. ``os.getenv("STRIPE_PRICE_ID")`` after ``load_dotenv()`` (local)
+    """
+    price_id = None
+    try:
+        price_id = st.secrets.get("STRIPE_PRICE_ID")
+    except Exception:
+        price_id = None
+    if not price_id:
+        price_id = os.getenv("STRIPE_PRICE_ID", "")
+    return (price_id or "").strip()
