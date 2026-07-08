@@ -70,12 +70,24 @@ def render_certified_assessment_paywall() -> None:
     persist_session_draft()
 
     base_link = get_stripe_payment_link()
-    if base_link:
+    if not base_link:
+        checkout_url = "#"
+        st.error(
+            "Payment link is not configured. Set **STRIPE_PAYMENT_LINK** in "
+            "`.env` (local) or Streamlit Cloud secrets."
+        )
+    elif not base_link.startswith("https://buy.stripe.com/"):
+        checkout_url = "#"
+        st.error(
+            "STRIPE_PAYMENT_LINK must be a full Stripe Payment Link URL "
+            "(https://buy.stripe.com/...). Copy it from the Stripe Dashboard."
+        )
+    else:
         checkout_url = (
             f"{base_link}?client_reference_id={st.session_state.get('draft_id', '')}"
         )
-    else:
-        checkout_url = "#"
+        slug = base_link.rsplit("/", 1)[-1][:12]
+        st.caption(f"Checkout destination: …/{slug}…")
 
     with st.container(border=True):
         st.link_button(

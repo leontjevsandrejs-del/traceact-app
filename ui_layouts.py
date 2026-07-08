@@ -13,7 +13,6 @@ Exports:
 
 import os
 import time
-import random
 
 import pandas as pd
 import streamlit as st
@@ -55,8 +54,8 @@ from utils.billing_ui import (
     DESCRIPTION_WIDGET_KEY,
 )
 
-PRIMARY_MODEL = "gemini-2.5-flash"
-FALLBACK_MODEL = "gemini-2.0-flash"
+GEMINI_MODEL = "gemini-2.5-flash"
+MAX_GEMINI_ATTEMPTS = 3
 
 ARTICLE_50_GUARDRAIL = """---
 ARTICLE 50 TEXT-GENERATION ANALYSIS RULE:
@@ -105,41 +104,29 @@ def get_gemini_client() -> genai.Client | None:
     return genai.Client(api_key=api_key)
 
 
-def _is_rate_limit_error(err: Exception) -> bool:
-    """Return True if the exception signals a 429 / quota-exhausted condition."""
+def _is_overload_error(err: Exception) -> bool:
+    """Return True for retryable 503 / ResourceExhausted conditions."""
     if isinstance(err, (ClientError, APIError)):
         status = getattr(err, "status_code", None) or getattr(err, "code", None)
-        if status == 429:
+        if status in (503, 429):
             return True
-    err_str = str(err)
-    return any(token in err_str for token in ("429", "RESOURCE_EXHAUSTED", "quota"))
-
-
-def _is_transient_error(err: Exception) -> bool:
-    """Return True for retryable conditions: 429 rate limits and 503 overload."""
-    if _is_rate_limit_error(err):
-        return True
-    if isinstance(err, (ClientError, APIError)):
-        status = getattr(err, "status_code", None) or getattr(err, "code", None)
-        if status in (500, 503, 504):
-            return True
-    err_str = str(err)
+    err_upper = str(err).upper()
     return any(
-        token in err_str
-        for token in ("503", "UNAVAILABLE", "overloaded", "high demand", "Deadline")
+        token in err_upper
+        for token in ("503", "RESOURCE_EXHAUSTED", "UNAVAILABLE", "OVERLOADED")
     )
 
 
 def call_gemini_with_retry(client, prompt, model_name=None):
     """
-    Call the Gemini API with up to 4 attempts and exponential backoff.
-    Displays a live animated countdown in the Streamlit UI during each wait.
+    Call Gemini with up to 3 attempts and exponential backoff on overload errors.
+
+    Retries exclusively on ``gemini-2.5-flash`` — no model fallback.
     """
-    model = model_name or PRIMARY_MODEL
-    max_attempts = 4
+    model = model_name or GEMINI_MODEL
     last_err = None
 
-    for attempt in range(max_attempts):
+    for attempt in range(MAX_GEMINI_ATTEMPTS):
         try:
             result = client.models.generate_content(
                 model=model, contents=prompt
@@ -149,57 +136,28 @@ def call_gemini_with_retry(client, prompt, model_name=None):
         except (ClientError, APIError, Exception) as err:
             last_err = err
 
-            if not _is_transient_error(err):
-                # Non-recoverable error — surface immediately
+            if not _is_overload_error(err):
                 raise
 
-            is_overload = not _is_rate_limit_error(err)
+            if attempt >= MAX_GEMINI_ATTEMPTS - 1:
+                break
 
-            # A 503 means this specific model is overloaded — switch to the
-            # fallback model right away instead of waiting out a long backoff.
-            if is_overload and model == PRIMARY_MODEL:
-                model = FALLBACK_MODEL
-                st.info(
-                    f"⚡ {PRIMARY_MODEL} is overloaded (503). "
-                    f"Switching to fallback lane ({FALLBACK_MODEL}) immediately."
-                )
-                time.sleep(2)
-                continue
-
-            if is_overload:
-                delay = int((2 ** attempt) * 5 + random.uniform(1, 3))
-                reason = "Model overloaded (503 UNAVAILABLE)"
-            else:
-                delay = int((2 ** attempt) * 8 + random.uniform(1, 3))
-                reason = "Rate limit threshold reached"
-
-            countdown_box = st.empty()
-
+            delay = 2 ** (attempt + 1)
+            wait_box = st.empty()
             for remaining in range(delay, 0, -1):
-                countdown_box.warning(
-                    f"⏳ {reason} on **{model}** "
-                    f"(attempt {attempt + 1}/{max_attempts}). "
-                    f"Cooldown backoff active... retrying in **{remaining}s**."
+                wait_box.warning(
+                    f"⏳ **{model}** is temporarily unavailable (503). "
+                    f"Attempt {attempt + 1}/{MAX_GEMINI_ATTEMPTS} failed — "
+                    f"retrying in **{remaining}s**."
                 )
                 time.sleep(1)
-
-            countdown_box.empty()
-
-            # On the final attempt, try FALLBACK_MODEL before giving up
-            if attempt == max_attempts - 2 and model == PRIMARY_MODEL:
-                model = FALLBACK_MODEL
-                st.info(
-                    f"Switching to fallback lane ({FALLBACK_MODEL}) "
-                    f"for remaining attempts."
-                )
+            wait_box.empty()
 
     st.error(
-        f"**All {max_attempts} retry attempts exhausted.**\n\n"
-        f"The Gemini API is currently rate-limited or overloaded. "
-        f"Please try the following:\n"
-        f"- Wait 60–90 seconds and click **Run Compliance Audit** again.\n"
-        f"- Check your quota at [Google AI Studio](https://aistudio.google.com/app/u/0/plan_information).\n"
-        f"- Verify your API key is for a paid-tier project if usage is high.\n\n"
+        f"**Gemini API unavailable after {MAX_GEMINI_ATTEMPTS} attempts.**\n\n"
+        f"The model is currently overloaded. Please wait 60–90 seconds and "
+        f"click **Run Compliance Audit** again, or check your quota at "
+        f"[Google AI Studio](https://aistudio.google.com/app/u/0/plan_information).\n\n"
         f"Last error: `{last_err}`"
     )
     return None
