@@ -43,9 +43,10 @@ from utils.annex_iv import (
 from utils.knowledge import load_legal_knowledge_base, knowledge_base_inventory
 from utils.report_gen import generate_pdf_report
 from utils.user_session import us_get, us_set, us_pop, us_contains, current_user_id, current_user_email
-from utils.tenant_db import deduct_audit_credit, archive_purchased_audit
+from utils.tenant_db import archive_purchased_audit
 from utils.billing_ui import (
     consume_auto_run_assessment,
+    consume_audit_entitlement,
     ensure_description_widget_state,
     is_assessment_paid,
     render_certified_assessment_paywall,
@@ -910,7 +911,7 @@ def _run_audit_pipeline(client, intake: dict, assess: dict):
         us_pop("obligations_df", None)
 
         uid = current_user_id()
-        if uid and not deduct_audit_credit(uid, 1):
+        if not consume_audit_entitlement(uid):
             st.error(
                 "PDF generated but the audit credit could not be deducted. "
                 "Please contact support."

@@ -8,7 +8,7 @@ import streamlit as st
 
 from utils.draft_store import ensure_session_draft_id, persist_session_draft
 from utils.stripe_config import get_stripe_payment_link
-from utils.user_session import us_get, us_set
+from utils.user_session import us_get, us_set, current_user_email, current_user_id
 
 DESCRIPTION_WIDGET_KEY = "system_description_input"
 _PAID_FLAG = "assessment_paid"
@@ -28,6 +28,35 @@ def mark_assessment_paid(*, auto_run: bool = True) -> None:
     if auto_run:
         st.session_state[_AUTO_RUN_FLAG] = True
         us_set(_AUTO_RUN_FLAG, True)
+    _sync_stripe_entitlement_to_tenant()
+
+
+def _sync_stripe_entitlement_to_tenant() -> None:
+    """Mirror a successful Stripe payment into the tenant credit ledger."""
+    try:
+        from utils.tenant_db import add_audit_credits, ensure_company_profile
+
+        uid = current_user_id()
+        ensure_company_profile(uid, current_user_email())
+        add_audit_credits(uid, 1)
+    except Exception:
+        pass
+
+
+def consume_audit_entitlement(user_id: str) -> bool:
+    """
+    Record use of a certified assessment after PDF generation.
+
+    Stripe-paid sessions are always entitled; legacy tenant credits are
+    deducted only when the Stripe flag is not set.
+    """
+    if is_assessment_paid():
+        return True
+    if not user_id:
+        return True
+    from utils.tenant_db import deduct_audit_credit
+
+    return deduct_audit_credit(user_id, 1)
 
 
 def consume_auto_run_assessment() -> bool:
