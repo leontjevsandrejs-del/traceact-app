@@ -69,8 +69,13 @@ def render_certified_assessment_paywall() -> None:
     draft_id = ensure_session_draft_id()
     persist_session_draft()
 
-    payment_link = get_stripe_payment_link()
-    checkout_url = f"{payment_link}?client_reference_id={st.session_state['draft_id']}"
+    base_link = get_stripe_payment_link()
+    if base_link:
+        checkout_url = (
+            f"{base_link}?client_reference_id={st.session_state.get('draft_id', '')}"
+        )
+    else:
+        checkout_url = "#"
 
     with st.container(border=True):
         st.link_button(

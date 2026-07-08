@@ -12,6 +12,15 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def sanitize_env_string(value: str | None) -> str:
+    """Strip whitespace, newlines, and stray quotation marks from env values."""
+    if not value:
+        return ""
+    cleaned = str(value).strip().replace('"', "").replace("'", "")
+    cleaned = cleaned.replace("\n", "").replace("\r", "")
+    return cleaned.strip()
+
+
 def get_stripe_secret_key() -> str:
     """
     Resolve ``STRIPE_SECRET_KEY`` for local and Streamlit Cloud runtimes.
@@ -62,18 +71,18 @@ def get_stripe_price_id() -> str:
 
 def get_stripe_payment_link() -> str:
     """
-    Resolve the static Stripe Payment Link URL from ``STRIPE_PAYMENT_LINK``.
+    Resolve and sanitize the static Stripe Payment Link URL.
 
     1. ``os.getenv("STRIPE_PAYMENT_LINK")`` after ``load_dotenv()`` (local)
     2. ``st.secrets.get("STRIPE_PAYMENT_LINK")`` (Streamlit Cloud)
     """
-    payment_link = os.getenv("STRIPE_PAYMENT_LINK")
-    if not payment_link:
+    base_link = sanitize_env_string(os.getenv("STRIPE_PAYMENT_LINK", ""))
+    if not base_link:
         try:
-            payment_link = st.secrets.get("STRIPE_PAYMENT_LINK")
+            base_link = sanitize_env_string(st.secrets.get("STRIPE_PAYMENT_LINK"))
         except Exception:
-            payment_link = None
-    return (payment_link or "https://buy.stripe.com/mock_link").strip()
+            base_link = ""
+    return base_link
 
 
 def get_stripe_payment_link_url() -> str:
