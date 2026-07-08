@@ -60,7 +60,7 @@ def render_certified_assessment_paywall() -> None:
         <div class="certified-report-lock">
           🔒 <strong>Certified Assessment Locked.</strong>
           Complete your intake above, then unlock the multi-agent conformity
-          pipeline with a one-time certified assessment payment.
+          pipeline with a one-time certified assessment payment (0.50 €).
         </div>
         """,
         unsafe_allow_html=True,
@@ -74,7 +74,7 @@ def render_certified_assessment_paywall() -> None:
 
     with st.container(border=True):
         st.link_button(
-            "💳 Run Certified Assessment — 0.01 €",
+            "💳 Run Certified Assessment — 0.50 €",
             checkout_url,
             use_container_width=True,
         )
