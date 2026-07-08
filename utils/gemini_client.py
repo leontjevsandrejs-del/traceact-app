@@ -13,7 +13,7 @@ from google import genai
 from google.genai.errors import APIError, ClientError
 
 GEMINI_MODEL = "gemini-3.5-flash"
-MAX_GEMINI_RETRIES = 3
+MAX_GEMINI_RETRIES = 5
 
 
 def get_gemini_api_key() -> str | None:
@@ -47,9 +47,39 @@ def _display_pipeline_error(err: Exception) -> None:
     try:
         import streamlit as st
 
-        st.error(f"Multi-Agent Pipeline Failure: {err}")
+        if _is_transient_error(err):
+            st.error(
+                "**Gemini API temporarily unavailable (503).**\n\n"
+                "Google reports high demand on `gemini-3.5-flash`. "
+                "Wait **60–90 seconds**, then click **Run Compliance Audit** again.\n\n"
+                f"Technical detail: `{err}`"
+            )
+        else:
+            st.error(f"Multi-Agent Pipeline Failure: {err}")
     except Exception:
         pass
+
+
+def _backoff_seconds(attempt: int) -> int:
+    """Exponential backoff: 3s, 6s, 12s, 24s between retries."""
+    return min(3 * (2 ** attempt), 30)
+
+
+def _wait_with_status(attempt: int, max_attempts: int, delay: int) -> None:
+    """Show a live countdown so the UI does not appear frozen during backoff."""
+    try:
+        import streamlit as st
+
+        status = st.empty()
+        for remaining in range(delay, 0, -1):
+            status.warning(
+                f"⏳ **{GEMINI_MODEL}** is overloaded (503). "
+                f"Retry {attempt + 1}/{max_attempts} in **{remaining}s**…"
+            )
+            time.sleep(1)
+        status.empty()
+    except Exception:
+        time.sleep(delay)
 
 
 def call_gemini_with_retry(client, prompt, model_name: str | None = None) -> str:
@@ -71,7 +101,7 @@ def call_gemini_with_retry(client, prompt, model_name: str | None = None) -> str
                 raise err from err
 
             if attempt < MAX_GEMINI_RETRIES - 1:
-                time.sleep(2 ** (attempt + 1))
+                _wait_with_status(attempt, MAX_GEMINI_RETRIES, _backoff_seconds(attempt))
                 continue
 
             _display_pipeline_error(err)
