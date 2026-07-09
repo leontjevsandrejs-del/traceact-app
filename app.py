@@ -217,6 +217,41 @@ html, body, [class*="css"] {
     margin-bottom: 0.75rem;
 }
 
+/* ── Workspace section nav (horizontal tab-style radio) ─────────────────── */
+#workspace-nav + div[data-testid="stRadio"] > div {
+    flex-direction: row !important;
+    flex-wrap: nowrap;
+    gap: 0 !important;
+    border-bottom: 2px solid #E2E8F0;
+    margin-bottom: 1rem;
+}
+#workspace-nav + div[data-testid="stRadio"] label {
+    display: inline-flex !important;
+    width: auto !important;
+    flex: 0 0 auto;
+    background: transparent !important;
+    border: none !important;
+    border-bottom: 3px solid transparent !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 0.65rem 1.4rem !important;
+    font-size: 0.825rem;
+    font-weight: 500;
+    color: #64748B !important;
+}
+#workspace-nav + div[data-testid="stRadio"] label:hover {
+    color: #2563EB !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+#workspace-nav + div[data-testid="stRadio"] label:has(input:checked) {
+    color: #2563EB !important;
+    border-bottom: 3px solid #2563EB !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    font-weight: 600;
+}
+
 /* ── Radio → card style ─────────────────────────────────────────────────────── */
 div[data-testid="stRadio"] > div { gap: 0.5rem; }
 div[data-testid="stRadio"] label {
