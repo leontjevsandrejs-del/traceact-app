@@ -20,6 +20,7 @@ from utils.gemini_client import (
     call_gemini_with_retry,
     get_gemini_client,
 )
+from utils.thinking_ui import thinking_mode
 
 from utils.risk_engine import (
     classify_risk,
@@ -735,7 +736,7 @@ def _run_audit_pipeline(client, intake: dict, assess: dict):
 
     try:
         # ── Agent A: Ingestion Analyst (evidence-bound profile) ──────────────
-        with st.spinner(assess.get("spinner_a", "Agent A is analysing...")):
+        with thinking_mode(assess.get("spinner_a", "Agent A is analysing...")):
             prompt_a = (
                 "You are Agent A — the Ingestion Analyst in a multi-agent EU AI Act "
                 "conformity-assessment pipeline.\n\n"
@@ -758,7 +759,7 @@ def _run_audit_pipeline(client, intake: dict, assess: dict):
             profile_a = call_gemini_with_retry(client, prompt_a)
 
         # ── Agent B: Regulatory Cross-Examiner (grounded findings) ───────────
-        with st.spinner(assess.get("spinner_b", "Agent B is auditing...")):
+        with thinking_mode(assess.get("spinner_b", "Agent B is auditing...")):
             law_block = (
                 f"\n\nOFFICIAL REGULATORY REFERENCE DOCUMENTS "
                 f"({len(kb_sources)} source files: {', '.join(kb_sources[:6])}...):\n"
@@ -810,7 +811,7 @@ def _run_audit_pipeline(client, intake: dict, assess: dict):
             findings_b = call_gemini_with_retry(client, prompt_b)
 
         # ── Agent C: Executive Auditor Draftsman (Tier 2 narrative) ──────────
-        with st.spinner(assess.get("spinner_c", "Agent C is drafting...")):
+        with thinking_mode(assess.get("spinner_c", "Agent C is drafting...")):
             prompt_c = (
                 "You are Agent C — the Executive Auditor Draftsman in a multi-agent EU AI Act "
                 "conformity-assessment pipeline.\n\n"
@@ -853,8 +854,8 @@ def _run_audit_pipeline(client, intake: dict, assess: dict):
             final_report_text = call_gemini_with_retry(client, prompt_c)
 
         # ── Agent C (second pass): Tier 4 Engineering Action Plan ────────────
-        with st.spinner(assess.get("spinner_d",
-                                   "Agent C is compiling the engineering action plan...")):
+        with thinking_mode(assess.get("spinner_d",
+                                       "Agent C is compiling the engineering action plan...")):
             prompt_d = (
                 "You are Agent C — now drafting TIER 4: THE ENGINEERING ACTION PLAN of the "
                 "conformity report.\n\n"

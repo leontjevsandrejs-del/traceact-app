@@ -66,15 +66,20 @@ def _backoff_seconds(attempt: int) -> int:
 
 
 def _wait_with_status(attempt: int, max_attempts: int, delay: int) -> None:
-    """Show a live countdown so the UI does not appear frozen during backoff."""
+    """Show animated thinking UI during API retry backoff."""
     try:
+        from utils.thinking_ui import inject_thinking_styles, _thinking_html
         import streamlit as st
 
+        inject_thinking_styles()
         status = st.empty()
         for remaining in range(delay, 0, -1):
-            status.warning(
-                f"⏳ **{GEMINI_MODEL}** is overloaded (503). "
-                f"Retry {attempt + 1}/{max_attempts} in **{remaining}s**…"
+            status.markdown(
+                _thinking_html(
+                    f"{GEMINI_MODEL} is overloaded (503). "
+                    f"Retry {attempt + 1}/{max_attempts} in {remaining}s…"
+                ),
+                unsafe_allow_html=True,
             )
             time.sleep(1)
         status.empty()
