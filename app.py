@@ -22,6 +22,36 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+st.markdown("""
+    <style>
+    /* 1. Hide default Streamlit framework watermarks and developer menus */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* 2. Tighten the infinite screen padding to create an intentional dashboard frame */
+    .block-container {
+        padding-top: 2.5rem !important;
+        padding-bottom: 4rem !important;
+        max-width: 46rem !important;
+    }
+    
+    /* 3. Elevate typography weight for step subheaders and captions */
+    .stMarkdown p {
+        line-height: 1.6 !important;
+    }
+    
+    /* 4. Style form description text to make statutory anchors stand out cleanly */
+    .stMarkdown em {
+        font-style: normal !important;
+        color: #4b5563 !important;
+        font-weight: 500 !important;
+        display: block;
+        margin-top: 4px;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 if st.query_params.get("vault") == "TraceAct_Secure_Pass_2026":
     st.query_params.clear()
     st.session_state["payment_cleared"] = True
