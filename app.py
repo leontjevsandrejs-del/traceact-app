@@ -6,6 +6,8 @@ renders the sidebar vault, and dispatches to the assessment wizard in
 ui_layouts.py.
 """
 
+SECRET_TOKEN = "TraceAct_Secure_Pass_2026"
+
 import json
 import os
 
@@ -22,51 +24,51 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ── Persistent session draft (mirrored to data/drafts.json) ───────────────────
-from utils.draft_store import ensure_session_draft_id, persist_session_draft
 
-ensure_session_draft_id()
-persist_session_draft()
+def run_compliance_engine() -> None:
+    # ── Persistent session draft (mirrored to data/drafts.json) ───────────────
+    from utils.draft_store import ensure_session_draft_id, persist_session_draft
 
-# ── Stripe inbound recovery (restores paid draft before workspace loads) ───────
-from utils.payment_return import process_stripe_return
+    ensure_session_draft_id()
+    persist_session_draft()
 
-process_stripe_return()
+    # ── Stripe inbound recovery (restores paid draft before workspace loads) ─
+    from utils.payment_return import process_stripe_return
 
-from utils.secure_session import restore_workspace_identity
+    process_stripe_return()
 
-restore_workspace_identity()
+    from utils.secure_session import restore_workspace_identity
 
-from utils.billing_ui import sync_credit_count
-from utils.sidebar_ui import render_enterprise_sidebar
-from ui_layouts import render_workspace_engine, render_legal_hub
+    restore_workspace_identity()
 
-sync_credit_count()
+    from utils.billing_ui import sync_credit_count
+    from utils.sidebar_ui import render_enterprise_sidebar
+    from ui_layouts import render_workspace_engine, render_legal_hub
 
+    sync_credit_count()
 
-def initialize_content() -> None:
-    """Read content.json safely into st.session_state.content on boot."""
-    if "content" in st.session_state and st.session_state.content:
-        return
-    content_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "content.json"
-    )
-    try:
-        with open(content_path, "r", encoding="utf-8") as f:
-            st.session_state.content = json.load(f)
-    except (OSError, json.JSONDecodeError) as err:
-        st.session_state.content = {}
-        st.error(
-            "Content database `content.json` could not be loaded — the "
-            f"interface will render without copy blocks. Detail: `{err}`"
+    def initialize_content() -> None:
+        """Read content.json safely into st.session_state.content on boot."""
+        if "content" in st.session_state and st.session_state.content:
+            return
+        content_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "content.json"
         )
+        try:
+            with open(content_path, "r", encoding="utf-8") as f:
+                st.session_state.content = json.load(f)
+        except (OSError, json.JSONDecodeError) as err:
+            st.session_state.content = {}
+            st.error(
+                "Content database `content.json` could not be loaded — the "
+                f"interface will render without copy blocks. Detail: `{err}`"
+            )
 
+    initialize_content()
+    _content = st.session_state.content
 
-initialize_content()
-_content = st.session_state.content
-
-# ── Global corporate CSS (dark/light professional palette) ────────────────────
-st.markdown("""
+    # ── Global corporate CSS (dark/light professional palette) ────────────────
+    st.markdown("""
 <style>
 /* ── Base & typography ─────────────────────────────────────────────────────── */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -565,9 +567,9 @@ div[data-testid="stButton"] > button[kind="primary"]:hover {
 </style>
 """, unsafe_allow_html=True)
 
-# ── Corporate dashboard header (copy pulled from the content database) ────────
-_app_copy = _content.get("app", {})
-st.markdown(f"""
+    # ── Corporate dashboard header (copy pulled from the content database) ────
+    _app_copy = _content.get("app", {})
+    st.markdown(f"""
 <div style="display:flex;align-items:center;gap:14px;padding:1rem 0 0.25rem;">
   <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M18 2L4 8V18C4 25.18 10.08 31.84 18 34C25.92 31.84 32 25.18 32 18V8L18 2Z"
@@ -589,8 +591,48 @@ st.markdown(f"""
 <div style="height:1px;background:linear-gradient(90deg,#2563EB 0%,#E2E8F0 55%);margin:1rem 0 1.25rem;"></div>
 """, unsafe_allow_html=True)
 
-render_enterprise_sidebar()
-render_workspace_engine()
+    render_enterprise_sidebar()
+    render_workspace_engine()
 
-with st.expander("Legal & Imprint", expanded=False):
-    render_legal_hub()
+    with st.expander("Legal & Imprint", expanded=False):
+        render_legal_hub()
+
+
+def _render_premium_paywall() -> None:
+    st.markdown(
+        """
+        <div style="max-width:640px;margin:2rem auto 0;">
+          <div style="background:#F8FAFC;border:1px solid #CBD5E1;border-left:4px solid #2563EB;
+                      border-radius:12px;padding:1.5rem 1.75rem;">
+            <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.1em;
+                        text-transform:uppercase;color:#2563EB;margin-bottom:0.5rem;">
+              Premium Access Required
+            </div>
+            <h2 style="font-size:1.35rem;font-weight:700;color:#0F172A;margin:0 0 0.75rem;">
+              Technical Documentation Generation Locked
+            </h2>
+            <p style="font-size:0.92rem;color:#475569;line-height:1.6;margin:0;">
+              The TraceAct EU AI Act compliance workspace and certified assessment
+              pipeline are available after checkout. Complete your purchase to unlock
+              the multi-agent conformity engine and PDF report generation.
+            </p>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "Complete checkout at **[TraceAct](https://www.traceact.eu)** to access "
+        "the premium compliance workspace."
+    )
+
+
+# ── Secure vault gate (query-parameter unlock) ──────────────────────────────
+if st.query_params.get("vault") == SECRET_TOKEN:
+    st.query_params.clear()
+    st.session_state["payment_cleared"] = True
+
+if st.session_state.get("payment_cleared"):
+    run_compliance_engine()
+else:
+    _render_premium_paywall()
