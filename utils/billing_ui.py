@@ -146,3 +146,75 @@ def sync_credit_count() -> int:
 
 def has_audit_credits() -> bool:
     return is_assessment_paid()
+
+
+def is_pdf_export_unlocked() -> bool:
+    return bool(st.session_state.get("payment_cleared") or is_assessment_paid())
+
+
+def build_stripe_checkout_url() -> str | None:
+    """Payment Link URL with draft id for post-checkout session restore."""
+    ensure_session_draft_id()
+    persist_session_draft()
+    base_link = get_stripe_payment_link()
+    if not base_link or not base_link.startswith("https://buy.stripe.com/"):
+        return None
+    draft_id = st.session_state.get("draft_id", "")
+    separator = "&" if "?" in base_link else "?"
+    return f"{base_link}{separator}client_reference_id={draft_id}"
+
+
+def render_pdf_export_action(
+    *,
+    pdf_bytes: bytes | None = None,
+    audit_complete: bool = False,
+    download_label: str = "Download Certified PDF Report",
+    upgrade_label: str = "Upgrade to Export Full Certified PDF Report",
+) -> None:
+    """Download (paid) or Stripe upgrade CTA at the end of Conformity Assessment."""
+    st.markdown("---")
+
+    if is_pdf_export_unlocked():
+        if pdf_bytes:
+            st.download_button(
+                label=download_label,
+                data=pdf_bytes,
+                file_name="EU_AI_Act_Audit_Report.pdf",
+                mime="application/pdf",
+                type="primary",
+                key="download_audit_report",
+                use_container_width=True,
+            )
+        elif audit_complete:
+            st.info("Your certified PDF is being prepared. Refresh if this persists.")
+        else:
+            st.caption(
+                "Run the compliance audit above to generate your certified PDF report."
+            )
+        return
+
+    checkout_url = build_stripe_checkout_url()
+    if not checkout_url:
+        st.error(
+            "Stripe payment link is not configured. Set **STRIPE_PAYMENT_LINK** in "
+            "`.env` (local) or Streamlit Cloud **Secrets**."
+        )
+        return
+
+    if audit_complete:
+        st.caption(
+            "Your assessment report is ready. Unlock the court-ready certified PDF "
+            "export (0.50 €) — includes Annex IV gap analysis and statutory citations."
+        )
+    else:
+        st.caption(
+            "Preview the full audit in-app for free. Upgrade anytime to export the "
+            "certified PDF report (0.50 €)."
+        )
+
+    st.link_button(
+        upgrade_label,
+        checkout_url,
+        type="primary",
+        use_container_width=True,
+    )

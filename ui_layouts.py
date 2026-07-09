@@ -48,14 +48,13 @@ from utils.tenant_db import archive_purchased_audit
 from utils.billing_ui import (
     WORKSPACE_TAB_KEY,
     consume_auto_run_assessment,
-    consume_audit_entitlement,
     ensure_description_widget_state,
+    is_pdf_export_unlocked,
+    render_pdf_export_action,
     sync_credit_count,
     sync_description_to_intake,
     DESCRIPTION_WIDGET_KEY,
 )
-from utils.draft_store import ensure_session_draft_id
-from utils.stripe_config import get_stripe_payment_link
 
 ARTICLE_50_GUARDRAIL = """---
 ARTICLE 50 TEXT-GENERATION ANALYSIS RULE:
@@ -628,6 +627,13 @@ def _render_conformity_assessment(assess: dict, cc: dict):
     audit_complete = us_get("audit_complete")
 
     intake = us_get("intake", {})
+    save_label = cc.get("save_button", "Download Certified PDF Report")
+
+    if not audit_complete:
+        render_pdf_export_action(
+            audit_complete=False,
+            download_label=save_label,
+        )
 
     if consume_auto_run_assessment() and not audit_complete:
         client = get_gemini_client()
@@ -659,6 +665,11 @@ def _render_conformity_assessment(assess: dict, cc: dict):
 
     if audit_complete:
         _render_command_center(cc)
+        render_pdf_export_action(
+            pdf_bytes=us_get("pdf_data_bytes"),
+            audit_complete=True,
+            download_label=save_label,
+        )
 
 
 def _run_audit_pipeline(client, intake: dict, assess: dict):
@@ -915,14 +926,9 @@ def _run_audit_pipeline(client, intake: dict, assess: dict):
         us_set("risk_citation", risk_citation)
         us_set("audit_date", date.today().isoformat())
         us_pop("obligations_df", None)
+        us_set("audit_complete", True)
 
-        uid = current_user_id()
-        if not consume_audit_entitlement(uid):
-            st.error(
-                "PDF generated but the audit credit could not be deducted. "
-                "Please contact support."
-            )
-        else:
+        if is_pdf_export_unlocked():
             system_name = (
                 intake.get("company")
                 or intake.get("industry")
@@ -930,14 +936,14 @@ def _run_audit_pipeline(client, intake: dict, assess: dict):
             )
             contact_email = current_user_email()
             archive_purchased_audit(
-                uid,
+                current_user_id(),
                 contact_email,
                 system_name,
                 pdf_bytes,
                 generated_at=date.today().isoformat(),
             )
-            us_set("audit_complete", True)
-            st.rerun()
+
+        st.rerun()
 
 
 def _render_command_center(cc: dict):
@@ -964,35 +970,6 @@ def _render_command_center(cc: dict):
         ov3.metric("Assessment Date", audit_dt.strftime("%d %b %Y"))
 
         st.markdown(us_get("report_markdown", ""))
-
-        pdf_bytes = us_get("pdf_data_bytes")
-        if pdf_bytes:
-            if st.session_state.get("payment_cleared"):
-                st.download_button(
-                    label=cc.get(
-                        "save_button",
-                        "Download Certified PDF Report",
-                    ),
-                    data=pdf_bytes,
-                    file_name="EU_AI_Act_Audit_Report.pdf",
-                    mime="application/pdf",
-                    type="primary",
-                    key="download_audit_report",
-                )
-            else:
-                ensure_session_draft_id()
-                base_link = get_stripe_payment_link()
-                checkout_url = (
-                    f"{base_link}?client_reference_id={st.session_state.get('draft_id', '')}"
-                    if base_link and base_link.startswith("https://buy.stripe.com/")
-                    else "#"
-                )
-                st.link_button(
-                    "Upgrade to Export Full Certified PDF Report",
-                    checkout_url,
-                    type="primary",
-                    use_container_width=True,
-                )
 
     # ── COMMAND CENTER TAB 2: Obligations Sheet ───────────────────────────────
     with cc_obligations:
