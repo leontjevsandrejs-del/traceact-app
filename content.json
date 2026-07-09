@@ -73,7 +73,7 @@
       "title": "Generate Legal Compliance Audit Report",
       "sub": "Initiates the three-agent analysis pipeline — Ingestion Analyst → Regulatory Cross-Examiner → Executive Draftsman.",
       "run_button": "Run Compliance Audit",
-      "missing_key_error": "Please set GEMINI_API_KEY in your .env file before running an audit.",
+      "missing_key_error": "Please set GEMINI_API_KEY in Streamlit secrets or your .env file before running an audit.",
       "missing_intake_error": "Please complete the Smart Compliance Wizard in the **System Triage** tab before running an audit.",
       "spinner_a": "🕵️‍♂️ Agent A [Ingestion Analyst] is dissecting system blueprints...",
       "spinner_b": "⚖️ Agent B [Regulatory Cross-Examiner] is auditing text against official EU Annexes...",

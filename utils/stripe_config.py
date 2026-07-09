@@ -73,15 +73,16 @@ def get_stripe_payment_link() -> str:
     """
     Resolve and sanitize the static Stripe Payment Link URL.
 
-    1. ``os.getenv("STRIPE_PAYMENT_LINK")`` after ``load_dotenv()`` (local)
-    2. ``st.secrets.get("STRIPE_PAYMENT_LINK")`` (Streamlit Cloud)
+    1. ``st.secrets.get("STRIPE_PAYMENT_LINK")`` (Streamlit Cloud)
+    2. ``os.getenv("STRIPE_PAYMENT_LINK")`` after ``load_dotenv()`` (local)
     """
-    base_link = sanitize_env_string(os.getenv("STRIPE_PAYMENT_LINK", ""))
+    base_link = ""
+    try:
+        base_link = sanitize_env_string(st.secrets.get("STRIPE_PAYMENT_LINK"))
+    except Exception:
+        base_link = ""
     if not base_link:
-        try:
-            base_link = sanitize_env_string(st.secrets.get("STRIPE_PAYMENT_LINK"))
-        except Exception:
-            base_link = ""
+        base_link = sanitize_env_string(os.getenv("STRIPE_PAYMENT_LINK", ""))
     return base_link
 
 

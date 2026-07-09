@@ -17,7 +17,16 @@ MAX_GEMINI_RETRIES = 5
 
 
 def get_gemini_api_key() -> str | None:
-    key = os.getenv("GEMINI_API_KEY", "").strip().strip("\"'")
+    key = None
+    try:
+        import streamlit as st
+
+        key = st.secrets.get("GEMINI_API_KEY")
+    except Exception:
+        key = None
+    if not key:
+        key = os.getenv("GEMINI_API_KEY", "")
+    key = str(key or "").strip().strip("\"'")
     if not key or key == "YOUR_ACTUAL_API_KEY_HERE":
         return None
     return key
