@@ -30,6 +30,7 @@ def is_assessment_paid() -> bool:
 
 def mark_assessment_paid(*, auto_run: bool = True) -> None:
     st.session_state[_PAID_FLAG] = True
+    st.session_state["payment_cleared"] = True
     us_set(_PAID_FLAG, True)
     if auto_run:
         st.session_state[_AUTO_RUN_FLAG] = True

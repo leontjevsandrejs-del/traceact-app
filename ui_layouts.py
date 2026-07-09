@@ -50,12 +50,12 @@ from utils.billing_ui import (
     consume_auto_run_assessment,
     consume_audit_entitlement,
     ensure_description_widget_state,
-    is_assessment_paid,
-    render_certified_assessment_paywall,
     sync_credit_count,
     sync_description_to_intake,
     DESCRIPTION_WIDGET_KEY,
 )
+from utils.draft_store import ensure_session_draft_id
+from utils.stripe_config import get_stripe_payment_link
 
 ARTICLE_50_GUARDRAIL = """---
 ARTICLE 50 TEXT-GENERATION ANALYSIS RULE:
@@ -626,11 +626,6 @@ def _render_conformity_assessment(assess: dict, cc: dict):
 
     sync_credit_count()
     audit_complete = us_get("audit_complete")
-    paid = is_assessment_paid()
-
-    if not paid and not audit_complete:
-        render_certified_assessment_paywall()
-        return
 
     intake = us_get("intake", {})
 
@@ -972,17 +967,32 @@ def _render_command_center(cc: dict):
 
         pdf_bytes = us_get("pdf_data_bytes")
         if pdf_bytes:
-            st.download_button(
-                label=cc.get(
-                    "save_button",
-                    "Download Certified PDF Report",
-                ),
-                data=pdf_bytes,
-                file_name="EU_AI_Act_Audit_Report.pdf",
-                mime="application/pdf",
-                type="primary",
-                key="download_audit_report",
-            )
+            if st.session_state.get("payment_cleared"):
+                st.download_button(
+                    label=cc.get(
+                        "save_button",
+                        "Download Certified PDF Report",
+                    ),
+                    data=pdf_bytes,
+                    file_name="EU_AI_Act_Audit_Report.pdf",
+                    mime="application/pdf",
+                    type="primary",
+                    key="download_audit_report",
+                )
+            else:
+                ensure_session_draft_id()
+                base_link = get_stripe_payment_link()
+                checkout_url = (
+                    f"{base_link}?client_reference_id={st.session_state.get('draft_id', '')}"
+                    if base_link and base_link.startswith("https://buy.stripe.com/")
+                    else "#"
+                )
+                st.link_button(
+                    "Upgrade to Export Full Certified PDF Report",
+                    checkout_url,
+                    type="primary",
+                    use_container_width=True,
+                )
 
     # ── COMMAND CENTER TAB 2: Obligations Sheet ───────────────────────────────
     with cc_obligations:
