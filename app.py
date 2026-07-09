@@ -596,5 +596,8 @@ st.markdown(f"""
 render_enterprise_sidebar()
 render_workspace_engine()
 
-with st.expander("Legal & Imprint", expanded=False):
+with st.expander(
+    _content.get("legal", {}).get("hub", {}).get("label", "EU AI Act Risk Reference"),
+    expanded=False,
+):
     render_legal_hub()

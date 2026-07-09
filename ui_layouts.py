@@ -8,7 +8,7 @@ No marketing or legal copy is hardcoded in this file.
 Exports:
     render_workspace_engine()  — intake wizard, multi-agent audit pipeline,
                                  compliance tracking sheets, PDF pack hooks.
-    render_legal_hub()         — GDPR Article 28 agreements + corporate imprint.
+    render_legal_hub()         — EU AI Act risk tier reference.
 """
 
 import pandas as pd
@@ -1074,7 +1074,7 @@ def _render_command_center(cc: dict):
 # ══════════════════════════════════════════════════════════════════════════════
 
 def render_legal_hub():
-    """GDPR Article 28 data agreements + mandatory corporate impressum blocks."""
+    """EU AI Act risk tier reference framework."""
     hub = _c("legal", "hub", default={})
     _section_header(hub.get("label", ""), hub.get("title", ""), hub.get("sub", ""))
 
@@ -1102,22 +1102,3 @@ def render_legal_hub():
                 """, unsafe_allow_html=True)
         st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
 
-    # ── GDPR Article 28 data agreements ───────────────────────────────────────
-    gdpr = _c("legal", "gdpr", default={})
-    st.markdown(f"### {gdpr.get('heading', '')}")
-    st.markdown(gdpr.get("body", ""))
-
-    st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
-
-    # ── Corporate imprint (Impressum) ─────────────────────────────────────────
-    imprint = _c("legal", "imprint", default={})
-    st.markdown(f"### {imprint.get('heading', '')}")
-    st.markdown(imprint.get("body", ""))
-
-    st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
-
-    # ── Liability disclaimer block ────────────────────────────────────────────
-    disclaimer = _c("legal", "disclaimer", default={})
-    st.markdown(f"### {disclaimer.get('heading', '')}")
-    with st.container(border=True):
-        st.markdown(disclaimer.get("body", ""))
