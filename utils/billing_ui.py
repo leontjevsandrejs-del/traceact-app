@@ -190,56 +190,42 @@ def render_pdf_export_action(
 
     tier = st.session_state.get("b2b_tier", "Sandbox")
 
-    if tier == "Sandbox":
+    if st.session_state.get("b2b_tier") == "Sandbox":
         st.info(
             "💡 **Diagnostic Mode Active:** You are viewing the automated readiness "
-            "evaluation framework. Under the EU AI Act, final statutory compliance "
-            "requires human governance certification."
+            "evaluation framework. Upgrade your workspace to unlock persistent data "
+            "vault tracking, active drift checks, and full document exports."
         )
 
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("""
-        ### Upgrade to Growth Monitor
-        **€249 / month** (Billed Annually)
-        * Active repository compliance drift mapping.
-        * Unlimited Evidence Vault PDF parsing passes.
-        * Full continuous monthly alignment tracking.
-        """)
-            growth_url = build_stripe_growth_checkout_url() or "https://buy.stripe.com/YOUR_GROWTH_LINK"
-            st.markdown(
-                f'<a href="{growth_url}" target="_blank" style="text-decoration:none;">'
-                '<div style="background-color:#0052CC;color:white;text-align:center;'
-                'padding:12px;border-radius:8px;font-weight:bold;cursor:pointer;">'
-                "Upgrade Workspace</div></a>",
-                unsafe_allow_html=True,
-            )
+        st.markdown("""
+    <div style="background-color:#f8fafc; border: 1px solid #e2e8f0; padding: 24px; border-radius: 12px; margin-top: 15px; margin-bottom: 20px;">
+        <h3 style="margin-top:0; color:#0f172a; font-size:22px;">🚀 Upgrade to Growth Monitor</h3>
+        <p style="color:#475569; font-size:18px; font-weight:700; margin-top:5px; margin-bottom:15px;">€249 / month <span style="font-size:13px; font-weight:400; color:#94a3b8;">(Billed Annually)</span></p>
+        <ul style="color:#334155; padding-left:20px; line-height:1.7; font-size:15px;">
+            <li><strong>Active Repository Drift Mapping:</strong> Continuous tracking against live code updates and model modifications.</li>
+            <li><strong>Unlimited Evidence Vault Parsing:</strong> Run heavy technical compliance blueprints transiently without restriction.</li>
+            <li><strong>Monthly Alignment Reporting:</strong> Automated delta compliance monitoring metrics pushed directly to your dashboard.</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
 
-        with col2:
-            st.markdown("""
-        ### Secure Human Legal Sign-Off
-        **Enterprise Integration Channel**
-        * Dispatch your pre-compiled agent audit draft.
-        * Route data packages to verified EU technical legal counsel.
-        * Accelerate formal review loop from 15 hours to 2 hours.
-        """)
-            if st.button("💼 Route Pre-Compiled Draft to Affiliated Legal Counsel"):
-                from datetime import datetime, timezone
+        growth_url = (
+            build_stripe_growth_checkout_url()
+            or "https://buy.stripe.com/dRmbJ2ddmgvb61qeVm87K00"
+        )
+        st.markdown(
+            f'<a href="{growth_url}" target="_blank" style="text-decoration:none;">'
+            '<div style="background-color:#0052CC;color:white;text-align:center;'
+            "padding:14px;border-radius:8px;font-weight:bold;font-size:16px;"
+            'cursor:pointer;box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">'
+            "Upgrade Workspace</div></a>",
+            unsafe_allow_html=True,
+        )
 
-                st.session_state.setdefault("history_logs", []).append({
-                    "event": "legal_counsel_route",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "tier": tier,
-                })
-                st.success(
-                    "📩 Sandbox assets packaged! A transmission pipeline has been staged "
-                    "for review. Our affiliated European technology compliance counsel "
-                    "will contact your workspace administrator."
-                )
-
-    elif tier in ("Growth", "Enterprise"):
+    elif st.session_state.get("b2b_tier") in ["Growth", "Enterprise"]:
         st.success(
-            f"💳 Premium {tier} Suite Active — Continuous Monitoring Engaged."
+            f"💳 Premium {st.session_state['b2b_tier']} Suite Active — "
+            "Continuous Monitoring Engaged."
         )
         if pdf_bytes:
             st.download_button(
