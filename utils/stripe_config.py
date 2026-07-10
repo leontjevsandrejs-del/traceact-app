@@ -86,6 +86,23 @@ def get_stripe_payment_link() -> str:
     return base_link
 
 
+def get_stripe_growth_payment_link() -> str:
+    """
+    Resolve the Growth Monitor subscription Payment Link URL.
+
+    1. ``st.secrets.get("STRIPE_GROWTH_PAYMENT_LINK")`` (Streamlit Cloud)
+    2. ``os.getenv("STRIPE_GROWTH_PAYMENT_LINK")`` (local)
+    """
+    growth_link = ""
+    try:
+        growth_link = sanitize_env_string(st.secrets.get("STRIPE_GROWTH_PAYMENT_LINK"))
+    except Exception:
+        growth_link = ""
+    if not growth_link:
+        growth_link = sanitize_env_string(os.getenv("STRIPE_GROWTH_PAYMENT_LINK", ""))
+    return growth_link
+
+
 def get_stripe_payment_link_url() -> str:
     """Back-compat alias for :func:`get_stripe_payment_link`."""
     return get_stripe_payment_link()

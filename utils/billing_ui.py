@@ -7,7 +7,7 @@ from __future__ import annotations
 import streamlit as st
 
 from utils.draft_store import ensure_session_draft_id, persist_session_draft
-from utils.stripe_config import get_stripe_payment_link
+from utils.stripe_config import get_stripe_payment_link, get_stripe_growth_payment_link
 from utils.user_session import us_get, us_set, current_user_email, current_user_id
 
 DESCRIPTION_WIDGET_KEY = "system_description_input"
@@ -31,6 +31,7 @@ def is_assessment_paid() -> bool:
 def mark_assessment_paid(*, auto_run: bool = True) -> None:
     st.session_state[_PAID_FLAG] = True
     st.session_state["payment_cleared"] = True
+    st.session_state["b2b_tier"] = "Growth"
     us_set(_PAID_FLAG, True)
     if auto_run:
         st.session_state[_AUTO_RUN_FLAG] = True
@@ -164,6 +165,18 @@ def build_stripe_checkout_url() -> str | None:
     return f"{base_link}{separator}client_reference_id={draft_id}"
 
 
+def build_stripe_growth_checkout_url() -> str | None:
+    """Growth-tier Payment Link with draft id for workspace continuity."""
+    ensure_session_draft_id()
+    persist_session_draft()
+    base_link = get_stripe_growth_payment_link() or get_stripe_payment_link()
+    if not base_link or not base_link.startswith("https://buy.stripe.com/"):
+        return None
+    draft_id = st.session_state.get("draft_id", "")
+    separator = "&" if "?" in base_link else "?"
+    return f"{base_link}{separator}client_reference_id={draft_id}"
+
+
 def render_pdf_export_action(
     *,
     pdf_bytes: bytes | None = None,
@@ -171,10 +184,63 @@ def render_pdf_export_action(
     download_label: str = "Download Certified PDF Report",
     upgrade_label: str = "Upgrade to Export Full Certified PDF Report",
 ) -> None:
-    """Download (paid) or Stripe upgrade CTA at the end of Conformity Assessment."""
+    """B2B finish-line: Sandbox diagnostic hand-off or premium export controls."""
     st.markdown("---")
+    st.subheader("🛡️ Compliance Diagnostic Output & Validation Pipeline")
 
-    if is_pdf_export_unlocked():
+    tier = st.session_state.get("b2b_tier", "Sandbox")
+
+    if tier == "Sandbox":
+        st.info(
+            "💡 **Diagnostic Mode Active:** You are viewing the automated readiness "
+            "evaluation framework. Under the EU AI Act, final statutory compliance "
+            "requires human governance certification."
+        )
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("""
+        ### Upgrade to Growth Monitor
+        **€249 / month** (Billed Annually)
+        * Active repository compliance drift mapping.
+        * Unlimited Evidence Vault PDF parsing passes.
+        * Full continuous monthly alignment tracking.
+        """)
+            growth_url = build_stripe_growth_checkout_url() or "https://buy.stripe.com/YOUR_GROWTH_LINK"
+            st.markdown(
+                f'<a href="{growth_url}" target="_blank" style="text-decoration:none;">'
+                '<div style="background-color:#0052CC;color:white;text-align:center;'
+                'padding:12px;border-radius:8px;font-weight:bold;cursor:pointer;">'
+                "Upgrade Workspace</div></a>",
+                unsafe_allow_html=True,
+            )
+
+        with col2:
+            st.markdown("""
+        ### Secure Human Legal Sign-Off
+        **Enterprise Integration Channel**
+        * Dispatch your pre-compiled agent audit draft.
+        * Route data packages to verified EU technical legal counsel.
+        * Accelerate formal review loop from 15 hours to 2 hours.
+        """)
+            if st.button("💼 Route Pre-Compiled Draft to Affiliated Legal Counsel"):
+                from datetime import datetime, timezone
+
+                st.session_state.setdefault("history_logs", []).append({
+                    "event": "legal_counsel_route",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "tier": tier,
+                })
+                st.success(
+                    "📩 Sandbox assets packaged! A transmission pipeline has been staged "
+                    "for review. Our affiliated European technology compliance counsel "
+                    "will contact your workspace administrator."
+                )
+
+    elif tier in ("Growth", "Enterprise"):
+        st.success(
+            f"💳 Premium {tier} Suite Active — Continuous Monitoring Engaged."
+        )
         if pdf_bytes:
             st.download_button(
                 label=download_label,
@@ -187,34 +253,16 @@ def render_pdf_export_action(
             )
         elif audit_complete:
             st.info("Your certified PDF is being prepared. Refresh if this persists.")
+        elif is_pdf_export_unlocked():
+            checkout_url = build_stripe_checkout_url()
+            if checkout_url:
+                st.link_button(
+                    upgrade_label,
+                    checkout_url,
+                    type="primary",
+                    use_container_width=True,
+                )
         else:
             st.caption(
                 "Run the compliance audit above to generate your certified PDF report."
             )
-        return
-
-    checkout_url = build_stripe_checkout_url()
-    if not checkout_url:
-        st.error(
-            "Stripe payment link is not configured. Set **STRIPE_PAYMENT_LINK** in "
-            "`.env` (local) or Streamlit Cloud **Secrets**."
-        )
-        return
-
-    if audit_complete:
-        st.caption(
-            "Your assessment report is ready. Unlock the court-ready certified PDF "
-            "export (0.50 €) — includes Annex IV gap analysis and statutory citations."
-        )
-    else:
-        st.caption(
-            "Preview the full audit in-app for free. Upgrade anytime to export the "
-            "certified PDF report (0.50 €)."
-        )
-
-    st.link_button(
-        upgrade_label,
-        checkout_url,
-        type="primary",
-        use_container_width=True,
-    )

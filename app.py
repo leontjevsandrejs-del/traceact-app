@@ -55,6 +55,10 @@ st.markdown("""
 if st.query_params.get("vault") == "TraceAct_Secure_Pass_2026":
     st.query_params.clear()
     st.session_state["payment_cleared"] = True
+    st.session_state["b2b_tier"] = "Growth"
+
+st.session_state.setdefault("b2b_tier", "Sandbox")
+st.session_state.setdefault("history_logs", [])
 
 # ── Persistent session draft (mirrored to data/drafts.json) ───────────────
 from utils.draft_store import ensure_session_draft_id, persist_session_draft

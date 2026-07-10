@@ -629,12 +629,6 @@ def _render_conformity_assessment(assess: dict, cc: dict):
     intake = us_get("intake", {})
     save_label = cc.get("save_button", "Download Certified PDF Report")
 
-    if not audit_complete:
-        render_pdf_export_action(
-            audit_complete=False,
-            download_label=save_label,
-        )
-
     if consume_auto_run_assessment() and not audit_complete:
         client = get_gemini_client()
         if client is None:
@@ -665,11 +659,12 @@ def _render_conformity_assessment(assess: dict, cc: dict):
 
     if audit_complete:
         _render_command_center(cc)
-        render_pdf_export_action(
-            pdf_bytes=us_get("pdf_data_bytes"),
-            audit_complete=True,
-            download_label=save_label,
-        )
+
+    render_pdf_export_action(
+        pdf_bytes=us_get("pdf_data_bytes") if audit_complete else None,
+        audit_complete=audit_complete,
+        download_label=save_label,
+    )
 
 
 def _run_audit_pipeline(client, intake: dict, assess: dict):

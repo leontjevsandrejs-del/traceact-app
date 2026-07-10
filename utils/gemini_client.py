@@ -33,6 +33,26 @@ def get_gemini_api_key() -> str | None:
 
 
 def get_gemini_client() -> genai.Client | None:
+    """Prefer Vertex AI (europe-west1) when enterprise GCP secrets are configured."""
+    try:
+        import streamlit as st
+        from google.oauth2 import service_account
+
+        gcp_info = st.secrets.get("gcp_service_account")
+        if gcp_info:
+            credentials = service_account.Credentials.from_service_account_info(
+                dict(gcp_info),
+                scopes=["https://www.googleapis.com/auth/cloud-platform"],
+            )
+            return genai.Client(
+                vertexai=True,
+                project=gcp_info["project_id"],
+                location="europe-west1",
+                credentials=credentials,
+            )
+    except Exception:
+        pass
+
     api_key = get_gemini_api_key()
     if not api_key:
         return None

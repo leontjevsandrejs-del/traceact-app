@@ -1,8 +1,8 @@
 {
   "app": {
-    "page_title": "TraceAct — EU AI Act Compliance Workspace",
-    "header_title": "EU AI Act Compliance Auditor",
-    "header_tagline": "Automated multi-agent regulatory assessment · Powered by Gemini",
+    "page_title": "TraceAct — Enterprise Compliance Readiness Sandbox",
+    "header_title": "Enterprise Compliance Readiness Sandbox",
+    "header_tagline": "EU-regulated diagnostic framework · European data residency (europe-west1)",
     "operator_line": "A TraceAct product · Operated by PV Services SIA (Latvia)"
   },
   "workspace": {
