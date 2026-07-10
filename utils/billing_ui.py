@@ -7,7 +7,11 @@ from __future__ import annotations
 import streamlit as st
 
 from utils.draft_store import ensure_session_draft_id, persist_session_draft
-from utils.stripe_config import get_stripe_payment_link, get_stripe_growth_payment_link
+from utils.stripe_config import (
+    get_stripe_payment_link,
+    get_stripe_growth_payment_link,
+    get_stripe_one_time_payment_link,
+)
 from utils.user_session import us_get, us_set, current_user_email, current_user_id
 
 DESCRIPTION_WIDGET_KEY = "system_description_input"
@@ -177,6 +181,18 @@ def build_stripe_growth_checkout_url() -> str | None:
     return f"{base_link}{separator}client_reference_id={draft_id}"
 
 
+def build_stripe_one_time_checkout_url() -> str | None:
+    """Single-report Payment Link with draft id for post-checkout session restore."""
+    ensure_session_draft_id()
+    persist_session_draft()
+    base_link = get_stripe_one_time_payment_link()
+    if not base_link or not base_link.startswith("https://buy.stripe.com/"):
+        return None
+    draft_id = st.session_state.get("draft_id", "")
+    separator = "&" if "?" in base_link else "?"
+    return f"{base_link}{separator}client_reference_id={draft_id}"
+
+
 def render_pdf_export_action(
     *,
     pdf_bytes: bytes | None = None,
@@ -188,39 +204,69 @@ def render_pdf_export_action(
     st.markdown("---")
     st.subheader("🛡️ Compliance Diagnostic Output & Validation Pipeline")
 
-    tier = st.session_state.get("b2b_tier", "Sandbox")
-
     if st.session_state.get("b2b_tier") == "Sandbox":
         st.info(
             "💡 **Diagnostic Mode Active:** You are viewing the automated readiness "
-            "evaluation framework. Upgrade your workspace to unlock persistent data "
-            "vault tracking, active drift checks, and full document exports."
+            "evaluation framework. Select a clearance tier below to unlock your "
+            "corporate conformity package."
         )
 
-        st.markdown("""
-    <div style="background-color:#f8fafc; border: 1px solid #e2e8f0; padding: 24px; border-radius: 12px; margin-top: 15px; margin-bottom: 20px;">
-        <h3 style="margin-top:0; color:#0f172a; font-size:22px;">🚀 Upgrade to Growth Monitor</h3>
-        <p style="color:#475569; font-size:18px; font-weight:700; margin-top:5px; margin-bottom:15px;">€249 / month <span style="font-size:13px; font-weight:400; color:#94a3b8;">(Billed Annually)</span></p>
-        <ul style="color:#334155; padding-left:20px; line-height:1.7; font-size:15px;">
-            <li><strong>Active Repository Drift Mapping:</strong> Continuous tracking against live code updates and model modifications.</li>
-            <li><strong>Unlimited Evidence Vault Parsing:</strong> Run heavy technical compliance blueprints transiently without restriction.</li>
-            <li><strong>Monthly Alignment Reporting:</strong> Automated delta compliance monitoring metrics pushed directly to your dashboard.</li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
+        col1, col2 = st.columns(2)
 
         growth_url = (
             build_stripe_growth_checkout_url()
             or "https://buy.stripe.com/dRmbJ2ddmgvb61qeVm87K00"
         )
-        st.markdown(
-            f'<a href="{growth_url}" target="_blank" style="text-decoration:none;">'
-            '<div style="background-color:#0052CC;color:white;text-align:center;'
-            "padding:14px;border-radius:8px;font-weight:bold;font-size:16px;"
-            'cursor:pointer;box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">'
-            "Upgrade Workspace</div></a>",
-            unsafe_allow_html=True,
+        one_time_url = (
+            build_stripe_one_time_checkout_url()
+            or "https://buy.stripe.com/YOUR_ONE_TIME_REPORT_STRIPE_LINK"
         )
+
+        with col1:
+            st.markdown("""
+        <div style="background-color:#f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 12px; min-height: 250px; display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+                <h3 style="margin-top:0; color:#0f172a; font-size:20px;">🚀 Growth Monitor</h3>
+                <p style="color:#475569; font-size:18px; font-weight:700; margin-top:5px; margin-bottom:15px;">€249 / month <span style="font-size:12px; font-weight:400; color:#94a3b8;">(Billed Annually)</span></p>
+                <ul style="color:#334155; padding-left:18px; line-height:1.5; font-size:14px;">
+                    <li><strong>Active Repository Drift Mapping:</strong> Continuous tracking against live code updates.</li>
+                    <li><strong>Unlimited Vault Parsing:</strong> Run heavy technical compliance blueprints transiently.</li>
+                    <li><strong>Monthly Delta Metrics:</strong> Regular alignment health monitoring alerts.</li>
+                </ul>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+            st.markdown(
+                f'<a href="{growth_url}" target="_blank" style="text-decoration:none;">'
+                '<div style="background-color:#0052CC;color:white;text-align:center;'
+                "padding:12px;border-radius:8px;font-weight:bold;font-size:15px;"
+                'margin-top:10px;cursor:pointer;box-shadow: 0 2px 4px rgba(0,0,0,0.05);">'
+                "Subscribe to Growth</div></a>",
+                unsafe_allow_html=True,
+            )
+
+        with col2:
+            st.markdown("""
+        <div style="background-color:#f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 12px; min-height: 250px; display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+                <h3 style="margin-top:0; color:#0f172a; font-size:20px;">📄 Single Compliance Report</h3>
+                <p style="color:#475569; font-size:18px; font-weight:700; margin-top:5px; margin-bottom:15px;">€149 <span style="font-size:12px; font-weight:400; color:#94a3b8;">(One-Time Purchase)</span></p>
+                <ul style="color:#334155; padding-left:18px; line-height:1.5; font-size:14px;">
+                    <li><strong>Instant PDF Blueprint:</strong> Full download access to this complete evaluation package.</li>
+                    <li><strong>Conformity Documentation:</strong> Pre-compiled draft framework mapped to the EU AI Act.</li>
+                    <li><strong>B2B Invoice Generation:</strong> Automatic corporate receipt parsing for accounting.</li>
+                </ul>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+            st.markdown(
+                f'<a href="{one_time_url}" target="_blank" style="text-decoration:none;">'
+                '<div style="background-color:#0f172a;color:white;text-align:center;'
+                "padding:12px;border-radius:8px;font-weight:bold;font-size:15px;"
+                'margin-top:10px;cursor:pointer;box-shadow: 0 2px 4px rgba(0,0,0,0.05);">'
+                "Buy Single Report</div></a>",
+                unsafe_allow_html=True,
+            )
 
     elif st.session_state.get("b2b_tier") in ["Growth", "Enterprise"]:
         st.success(
