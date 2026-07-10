@@ -221,13 +221,6 @@ def render_pdf_export_action(
             build_stripe_one_time_checkout_url()
             or "https://buy.stripe.com/YOUR_ONE_TIME_REPORT_STRIPE_LINK"
         )
-        _cta_btn = (
-            "background-color:#0052CC;color:#ffffff !important;"
-            "-webkit-text-fill-color:#ffffff !important;text-align:center;"
-            "padding:12px;border-radius:8px;font-weight:bold;font-size:15px;"
-            "margin-top:10px;cursor:pointer;box-shadow:0 2px 4px rgba(0,0,0,0.05);"
-        )
-        _cta_link = "text-decoration:none;color:#ffffff !important;"
 
         with col1:
             st.markdown("""
@@ -243,11 +236,11 @@ def render_pdf_export_action(
             </div>
         </div>
         """, unsafe_allow_html=True)
-            st.markdown(
-                f'<a href="{growth_url}" target="_blank" style="{_cta_link}">'
-                f'<div style="{_cta_btn}">'
-                "Subscribe to Growth</div></a>",
-                unsafe_allow_html=True,
+            st.link_button(
+                "Subscribe to Growth",
+                growth_url,
+                type="primary",
+                use_container_width=True,
             )
 
         with col2:
@@ -264,11 +257,11 @@ def render_pdf_export_action(
             </div>
         </div>
         """, unsafe_allow_html=True)
-            st.markdown(
-                f'<a href="{one_time_url}" target="_blank" style="{_cta_link}">'
-                f'<div style="{_cta_btn}">'
-                "Buy Single Report</div></a>",
-                unsafe_allow_html=True,
+            st.link_button(
+                "Buy Single Report",
+                one_time_url,
+                type="primary",
+                use_container_width=True,
             )
 
     elif st.session_state.get("b2b_tier") in ["Growth", "Enterprise"]:

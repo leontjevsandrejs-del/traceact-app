@@ -367,6 +367,26 @@ div[data-testid="stButton"] > button[kind="primary"]:hover {
     transform: translateY(-1px);
 }
 
+/* ── Link button (checkout CTAs) ─────────────────────────────────────────── */
+div[data-testid="stLinkButton"] > a {
+    background: linear-gradient(135deg, #0052CC 0%, #1D4ED8 100%) !important;
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 0.75rem 1rem !important;
+    font-size: 0.9375rem !important;
+    font-weight: 700 !important;
+    color: #FFFFFF !important;
+    -webkit-text-fill-color: #FFFFFF !important;
+    text-decoration: none !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    display: block;
+    text-align: center;
+}
+div[data-testid="stLinkButton"] > a:hover {
+    color: #FFFFFF !important;
+    -webkit-text-fill-color: #FFFFFF !important;
+}
+
 /* ── Metric cards ───────────────────────────────────────────────────────────── */
 [data-testid="stMetric"] {
     background: #FFFFFF;
