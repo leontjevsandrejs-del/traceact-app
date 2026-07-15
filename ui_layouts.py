@@ -55,6 +55,62 @@ from utils.billing_ui import (
     sync_description_to_intake,
     DESCRIPTION_WIDGET_KEY,
 )
+from utils.draft_store import persist_session_draft
+
+INTAKE_CONTENT_KEY = "intake_content"
+UPLOADED_FILE_TEXT_KEY = "uploaded_file_text"
+
+
+def _extract_uploaded_file_text(uploaded_file) -> str:
+    """Extract plain text from a Step 4 TXT or PDF upload."""
+    if uploaded_file is None:
+        return ""
+    try:
+        uploaded_file.seek(0)
+        if uploaded_file.name.lower().endswith(".pdf"):
+            reader = pypdf.PdfReader(uploaded_file)
+            return "\n".join(
+                (page.extract_text() or "") for page in reader.pages
+            ).strip()
+        uploaded_file.seek(0)
+        return uploaded_file.read().decode("utf-8", errors="replace").strip()
+    except Exception:
+        return ""
+
+
+def compile_intake_content(pasted_notes: str, file_text: str) -> str:
+    """Merge pasted notes and uploaded file text into one evidence payload."""
+    pasted_notes = (pasted_notes or "").strip()
+    file_text = (file_text or "").strip()
+    sections: list[str] = []
+    if pasted_notes:
+        sections.append(f"=== Pasted Notes ===\n{pasted_notes}")
+    if file_text:
+        sections.append(f"=== Uploaded File Content ===\n{file_text}")
+    return "\n\n".join(sections).strip()
+
+
+def refresh_intake_content(intake: dict, uploaded_file=None) -> str:
+    """Compile Step 4 inputs into ``st.session_state['intake_content']``."""
+    pasted = st.session_state.get(DESCRIPTION_WIDGET_KEY, "").strip()
+    file_text = ""
+
+    if uploaded_file is not None:
+        extracted = _extract_uploaded_file_text(uploaded_file)
+        if extracted:
+            file_text = extracted
+            st.session_state[UPLOADED_FILE_TEXT_KEY] = file_text
+    else:
+        file_text = st.session_state.get(UPLOADED_FILE_TEXT_KEY, "").strip()
+
+    content = compile_intake_content(pasted, file_text)
+    st.session_state[INTAKE_CONTENT_KEY] = content
+    intake["intake_content"] = content
+    intake["description"] = pasted
+    intake["evidence_text"] = file_text
+    us_set("intake", intake)
+    persist_session_draft()
+    return content
 
 ARTICLE_50_GUARDRAIL = """---
 ARTICLE 50 TEXT-GENERATION ANALYSIS RULE:
@@ -331,24 +387,14 @@ def render_workspace_engine():
 def _process_step4_upload(wizard_file, intake: dict, s4: dict) -> None:
     if wizard_file is None:
         return
-    try:
-        wizard_file.seek(0)
-        if wizard_file.name.lower().endswith(".pdf"):
-            reader = pypdf.PdfReader(wizard_file)
-            intake["evidence_text"] = "\n".join(
-                (page.extract_text() or "") for page in reader.pages
-            )
-        else:
-            wizard_file.seek(0)
-            intake["evidence_text"] = wizard_file.read().decode(
-                "utf-8", errors="replace"
-            )
-        us_set("intake", intake)
+    extracted = _extract_uploaded_file_text(wizard_file)
+    if extracted:
+        st.session_state[UPLOADED_FILE_TEXT_KEY] = extracted
         st.success(s4.get("upload_success", "Document cached."))
-    except Exception:
-        intake["evidence_text"] = ""
-        us_set("intake", intake)
+    else:
+        st.session_state.pop(UPLOADED_FILE_TEXT_KEY, None)
         st.error(s4.get("upload_error", "Could not extract text."))
+    refresh_intake_content(intake, wizard_file=None)
 
 
 def _render_step4_intake_workspace(s4: dict, intake: dict, wz: dict) -> None:
@@ -389,7 +435,7 @@ def _render_step4_intake_workspace(s4: dict, intake: dict, wz: dict) -> None:
             key=DESCRIPTION_WIDGET_KEY,
         )
 
-    sync_description_to_intake(intake)
+    refresh_intake_content(intake)
 
     preview = classify_risk(intake)
     st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
@@ -629,33 +675,34 @@ def _render_conformity_assessment(assess: dict, cc: dict):
     intake = us_get("intake", {})
     save_label = cc.get("save_button", "Download Certified PDF Report")
 
-    if consume_auto_run_assessment() and not audit_complete:
+    def _try_run_audit() -> None:
+        refresh_intake_content(intake)
+        intake_content = st.session_state.get(INTAKE_CONTENT_KEY, "").strip()
+        if not intake_content:
+            st.warning(
+                "⚠️ Please upload a file or paste a product description to run the audit."
+            )
+            return
         client = get_gemini_client()
         if client is None:
             st.error(assess.get("missing_key_error", "Missing GEMINI_API_KEY."))
-        elif not intake.get("industry"):
+            return
+        if not intake.get("industry"):
             st.error(assess.get("missing_intake_error", "Complete the wizard first."))
-        else:
-            us_set("audit_complete", False)
-            us_set("report_markdown", "")
-            us_set("pdf_data_bytes", None)
-            _run_audit_pipeline(client, intake, assess)
-            st.rerun()
+            return
+        us_set("audit_complete", False)
+        us_set("report_markdown", "")
+        us_set("pdf_data_bytes", None)
+        _run_audit_pipeline(client, intake, assess)
+
+    if consume_auto_run_assessment() and not audit_complete:
+        _try_run_audit()
+        st.rerun()
 
     if not audit_complete and st.button(
         assess.get("run_button", "Run Compliance Audit"), type="primary"
     ):
-        us_set("audit_complete", False)
-        us_set("report_markdown", "")
-        us_set("pdf_data_bytes", None)
-
-        client = get_gemini_client()
-        if client is None:
-            st.error(assess.get("missing_key_error", "Missing GEMINI_API_KEY."))
-        elif not intake.get("industry"):
-            st.error(assess.get("missing_intake_error", "Complete the wizard first."))
-        else:
-            _run_audit_pipeline(client, intake, assess)
+        _try_run_audit()
 
     if audit_complete:
         _render_command_center(cc)
@@ -692,9 +739,13 @@ def _run_audit_pipeline(client, intake: dict, assess: dict):
     )
 
     # ── Stage 0b: deterministic Annex IV documentation reconciliation ─────────
-    blueprint_text = intake.get("evidence_text", "") or ""
-    description = (intake.get("description") or "").strip()
-    documentation_corpus = "\n".join(filter(None, [blueprint_text, description]))
+    intake_content = (intake.get("intake_content") or "").strip()
+    if not intake_content:
+        blueprint_text = intake.get("evidence_text", "") or ""
+        description = (intake.get("description") or "").strip()
+        intake_content = compile_intake_content(description, blueprint_text)
+
+    documentation_corpus = intake_content
     had_documentation = bool(documentation_corpus.strip())
 
     annex_iv_findings = scan_documentation(documentation_corpus)
@@ -726,14 +777,10 @@ def _run_audit_pipeline(client, intake: dict, assess: dict):
     )
 
     pasted_block = (
-        f"\n--- USER-PROVIDED PRODUCT DESCRIPTION ---\n{description}\n"
-        if description else ""
+        f"\n--- COMPILED INTAKE CONTENT ---\n{intake_content}\n"
+        if intake_content else ""
     )
-    combined_blueprint = (
-        wizard_metadata
-        + pasted_block
-        + (f"\n--- UPLOADED DOCUMENT TEXT ---\n{blueprint_text}" if blueprint_text else "")
-    )
+    combined_blueprint = wizard_metadata + pasted_block
 
     classification_block = (
         "=== DETERMINISTIC STATUTORY CLASSIFICATION (authoritative — do not alter) ===\n"
