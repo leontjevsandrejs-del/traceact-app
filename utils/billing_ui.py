@@ -230,9 +230,10 @@ def render_pdf_export_action(
                 <h3 style="margin-top:0; color:#0f172a; font-size:20px;">🚀 Growth Monitor</h3>
                 <p style="color:#475569; font-size:18px; font-weight:700; margin-top:5px; margin-bottom:15px;">€249 / month <span style="font-size:12px; font-weight:400; color:#94a3b8;">(Billed Annually)</span></p>
                 <ul style="color:#334155; padding-left:18px; line-height:1.5; font-size:14px;">
-                    <li><strong>Active Repository Drift Mapping:</strong> Continuous tracking against live code updates.</li>
-                    <li><strong>Unlimited Vault Parsing:</strong> Run heavy technical compliance blueprints transiently.</li>
-                    <li><strong>Monthly Delta Metrics:</strong> Regular alignment health monitoring alerts.</li>
+                    <li><strong>Continuous SaaS Access:</strong> Ongoing, unlimited subscription access to use the TraceAct compliance platform.</li>
+                    <li><strong>Run Audits Anytime:</strong> Execute our full three-agent analysis pipeline whenever your workspace, files, or code repositories change.</li>
+                    <li><strong>Track Changes Over Time:</strong> Monitor your compliance status dynamically and run regular reviews to prevent policy drift.</li>
+                    <li><strong>No Per-Audit Limits:</strong> Scan and audit your environment as frequently as needed with a single active subscription.</li>
                 </ul>
             </div>
         </div>
@@ -251,9 +252,10 @@ def render_pdf_export_action(
                 <h3 style="margin-top:0; color:#0f172a; font-size:20px;">📄 Single Compliance Report</h3>
                 <p style="color:#475569; font-size:18px; font-weight:700; margin-top:5px; margin-bottom:15px;">€149 <span style="font-size:12px; font-weight:400; color:#94a3b8;">(One-Time Purchase)</span></p>
                 <ul style="color:#334155; padding-left:18px; line-height:1.5; font-size:14px;">
-                    <li><strong>Instant PDF Blueprint:</strong> Full download access to this complete evaluation package.</li>
-                    <li><strong>Conformity Documentation:</strong> Pre-compiled draft framework mapped to the EU AI Act.</li>
-                    <li><strong>B2B Invoice Generation:</strong> Automatic corporate receipt parsing for accounting.</li>
+                    <li><strong>One-Time Audit Run:</strong> Single execution of the complete three-agent analysis pipeline for a point-in-time assessment.</li>
+                    <li><strong>Full Audit Report:</strong> Download a comprehensive legal compliance draft and gap analysis based on your current setup.</li>
+                    <li><strong>No Long-Term Commitment:</strong> Ideal if you only need a single snapshot report for legal reviews or partner validation.</li>
+                    <li><strong>Single Report Generation:</strong> Does not include ongoing access to the SaaS platform for future workspace rescans.</li>
                 </ul>
             </div>
         </div>
