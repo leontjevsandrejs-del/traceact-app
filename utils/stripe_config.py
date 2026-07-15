@@ -15,7 +15,7 @@ DEFAULT_ONE_TIME_REPORT_PAYMENT_LINK = (
     "https://buy.stripe.com/fZu3cw4GQceVahGaF687K01"
 )
 DEFAULT_GROWTH_PAYMENT_LINK = (
-    "https://buy.stripe.com/28EfZi6OY7F3Ti14w87K02"
+    "https://buy.stripe.com/28EfZi6OY7YF3Ti14w87K02"
 )
 
 

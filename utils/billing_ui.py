@@ -172,15 +172,11 @@ def build_stripe_checkout_url() -> str | None:
 
 
 def build_stripe_growth_checkout_url() -> str | None:
-    """Growth-tier Payment Link with draft id for workspace continuity."""
-    ensure_session_draft_id()
-    persist_session_draft()
+    """Growth subscription Payment Link — bare URL only (no query params)."""
     base_link = get_stripe_growth_payment_link()
     if not base_link or not base_link.startswith("https://buy.stripe.com/"):
         return None
-    draft_id = st.session_state.get("draft_id", "")
-    separator = "&" if "?" in base_link else "?"
-    return f"{base_link}{separator}client_reference_id={draft_id}"
+    return base_link.split("?")[0].rstrip("/")
 
 
 def build_stripe_one_time_checkout_url() -> str | None:
@@ -215,10 +211,7 @@ def render_pdf_export_action(
 
         col1, col2 = st.columns(2)
 
-        growth_url = (
-            build_stripe_growth_checkout_url()
-            or DEFAULT_GROWTH_PAYMENT_LINK
-        )
+        growth_url = build_stripe_growth_checkout_url() or DEFAULT_GROWTH_PAYMENT_LINK
         one_time_url = (
             build_stripe_one_time_checkout_url()
             or f"{DEFAULT_ONE_TIME_REPORT_PAYMENT_LINK}"
