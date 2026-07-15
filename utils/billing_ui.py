@@ -8,6 +8,7 @@ import streamlit as st
 
 from utils.draft_store import ensure_session_draft_id, persist_session_draft
 from utils.stripe_config import (
+    DEFAULT_GROWTH_PAYMENT_LINK,
     DEFAULT_ONE_TIME_REPORT_PAYMENT_LINK,
     get_stripe_payment_link,
     get_stripe_growth_payment_link,
@@ -174,7 +175,7 @@ def build_stripe_growth_checkout_url() -> str | None:
     """Growth-tier Payment Link with draft id for workspace continuity."""
     ensure_session_draft_id()
     persist_session_draft()
-    base_link = get_stripe_growth_payment_link() or get_stripe_payment_link()
+    base_link = get_stripe_growth_payment_link()
     if not base_link or not base_link.startswith("https://buy.stripe.com/"):
         return None
     draft_id = st.session_state.get("draft_id", "")
@@ -216,7 +217,7 @@ def render_pdf_export_action(
 
         growth_url = (
             build_stripe_growth_checkout_url()
-            or "https://buy.stripe.com/dRmbJ2ddmgvb61qeVm87K00"
+            or DEFAULT_GROWTH_PAYMENT_LINK
         )
         one_time_url = (
             build_stripe_one_time_checkout_url()
@@ -228,7 +229,7 @@ def render_pdf_export_action(
         <div style="background-color:#f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 12px; min-height: 250px; display: flex; flex-direction: column; justify-content: space-between;">
             <div>
                 <h3 style="margin-top:0; color:#0f172a; font-size:20px;">🚀 Growth Monitor</h3>
-                <p style="color:#475569; font-size:18px; font-weight:700; margin-top:5px; margin-bottom:15px;">€249 / month <span style="font-size:12px; font-weight:400; color:#94a3b8;">(Billed Annually)</span></p>
+                <p style="color:#475569; font-size:18px; font-weight:700; margin-top:5px; margin-bottom:15px;">€249 / month <span style="font-size:12px; font-weight:400; color:#94a3b8;">(Billed monthly)</span></p>
                 <ul style="color:#334155; padding-left:18px; line-height:1.5; font-size:14px;">
                     <li><strong>Continuous SaaS Access:</strong> Ongoing, unlimited subscription access to use the TraceAct compliance platform.</li>
                     <li><strong>Run Audits Anytime:</strong> Execute our full three-agent analysis pipeline whenever your workspace, files, or code repositories change.</li>

@@ -14,6 +14,9 @@ load_dotenv()
 DEFAULT_ONE_TIME_REPORT_PAYMENT_LINK = (
     "https://buy.stripe.com/fZu3cw4GQceVahGaF687K01"
 )
+DEFAULT_GROWTH_PAYMENT_LINK = (
+    "https://buy.stripe.com/28EfZi6OY7F3Ti14w87K02"
+)
 
 
 def sanitize_env_string(value: str | None) -> str:
@@ -104,6 +107,8 @@ def get_stripe_growth_payment_link() -> str:
         growth_link = ""
     if not growth_link:
         growth_link = sanitize_env_string(os.getenv("STRIPE_GROWTH_PAYMENT_LINK", ""))
+    if not growth_link:
+        growth_link = DEFAULT_GROWTH_PAYMENT_LINK
     return growth_link
 
 
