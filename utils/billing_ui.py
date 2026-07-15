@@ -209,7 +209,18 @@ def render_pdf_export_action(
             "corporate conformity package."
         )
 
-        col1, col2 = st.columns(2)
+        st.markdown(
+            """
+            <style>
+            div[data-testid="stHorizontalBlock"]:has(div[data-testid="stLinkButton"]) div[data-testid="stLinkButton"] {
+                margin-top: 12px !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        col1, col2 = st.columns(2, gap="medium")
 
         growth_url = build_stripe_growth_checkout_url() or DEFAULT_GROWTH_PAYMENT_LINK
         one_time_url = (
@@ -217,13 +228,19 @@ def render_pdf_export_action(
             or f"{DEFAULT_ONE_TIME_REPORT_PAYMENT_LINK}"
         )
 
+        _card_shell = (
+            "background-color:#f8fafc; border:1px solid #e2e8f0; padding:20px; "
+            "border-radius:12px; height:415px; box-sizing:border-box; "
+            "display:flex; flex-direction:column; margin-bottom:0;"
+        )
+
         with col1:
-            st.markdown("""
-        <div style="background-color:#f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 12px; min-height: 250px; display: flex; flex-direction: column; justify-content: space-between;">
-            <div>
+            st.markdown(f"""
+        <div style="{_card_shell}">
+            <div style="flex:1 1 auto;">
                 <h3 style="margin-top:0; color:#0f172a; font-size:20px;">🚀 Growth Monitor</h3>
                 <p style="color:#475569; font-size:18px; font-weight:700; margin-top:5px; margin-bottom:15px;">€249 / month <span style="font-size:12px; font-weight:400; color:#94a3b8;">(Billed monthly)</span></p>
-                <ul style="color:#334155; padding-left:18px; line-height:1.5; font-size:14px;">
+                <ul style="color:#334155; padding-left:18px; line-height:1.5; font-size:14px; margin-bottom:0;">
                     <li><strong>Continuous SaaS Access:</strong> Ongoing, unlimited subscription access to use the TraceAct compliance platform.</li>
                     <li><strong>Run Audits Anytime:</strong> Execute our full three-agent analysis pipeline whenever your workspace, files, or code repositories change.</li>
                     <li><strong>Track Changes Over Time:</strong> Monitor your compliance status dynamically and run regular reviews to prevent policy drift.</li>
@@ -240,12 +257,12 @@ def render_pdf_export_action(
             )
 
         with col2:
-            st.markdown("""
-        <div style="background-color:#f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 12px; min-height: 250px; display: flex; flex-direction: column; justify-content: space-between;">
-            <div>
+            st.markdown(f"""
+        <div style="{_card_shell}">
+            <div style="flex:1 1 auto;">
                 <h3 style="margin-top:0; color:#0f172a; font-size:20px;">📄 Single Compliance Report</h3>
                 <p style="color:#475569; font-size:18px; font-weight:700; margin-top:5px; margin-bottom:15px;">€149 <span style="font-size:12px; font-weight:400; color:#94a3b8;">(One-Time Purchase)</span></p>
-                <ul style="color:#334155; padding-left:18px; line-height:1.5; font-size:14px;">
+                <ul style="color:#334155; padding-left:18px; line-height:1.5; font-size:14px; margin-bottom:0;">
                     <li><strong>One-Time Audit Run:</strong> Single execution of the complete three-agent analysis pipeline for a point-in-time assessment.</li>
                     <li><strong>Full Audit Report:</strong> Download a comprehensive legal compliance draft and gap analysis based on your current setup.</li>
                     <li><strong>No Long-Term Commitment:</strong> Ideal if you only need a single snapshot report for legal reviews or partner validation.</li>
