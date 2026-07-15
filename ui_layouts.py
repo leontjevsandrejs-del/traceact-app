@@ -534,9 +534,17 @@ def _render_intake_wizard(wz: dict):
 
     st.markdown(_wizard_step_header(step), unsafe_allow_html=True)
 
-    def _saved_index(options, key, default=0):
+    def _saved_index(options, key):
         saved = intake.get(key)
-        return options.index(saved) if saved in options else default
+        if not saved or saved not in options:
+            return None
+        return options.index(saved)
+
+    def _require_selections(**fields) -> bool:
+        if any(value is None for value in fields.values()):
+            st.warning("Please answer every question before continuing.")
+            return False
+        return True
 
     # ── STEP 1: Company & Industry Sector Profile ────────────────────────────
     if step == 1:
@@ -551,6 +559,7 @@ def _render_intake_wizard(wz: dict):
             "Industry sector",
             options=INDUSTRY_OPTIONS,
             index=_saved_index(INDUSTRY_OPTIONS, "industry"),
+            placeholder="Select industry sector…",
             label_visibility="collapsed",
         )
 
@@ -566,15 +575,20 @@ def _render_intake_wizard(wz: dict):
                 s1.get("role_label", "Value-chain role"),
                 options=ROLE_OPTIONS,
                 index=_saved_index(ROLE_OPTIONS, "role"),
+                placeholder="Select value-chain role…",
             )
 
         st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
         if st.button(s1.get("next_button", "Continue →"), type="primary"):
-            intake["industry"] = sel_industry
-            intake["company"] = sel_company.strip()
-            intake["role"] = sel_role
-            us_set("step", 2)
-            st.rerun()
+            if not _require_selections(industry=sel_industry, role=sel_role):
+                pass
+            else:
+                intake["industry"] = sel_industry
+                intake["company"] = sel_company.strip()
+                intake["role"] = sel_role
+                us_set("intake", intake)
+                us_set("step", 2)
+                st.rerun()
 
     # ── STEP 2: Algorithmic Data & Biometric Footprint ───────────────────────
     elif step == 2:
@@ -622,12 +636,21 @@ def _render_intake_wizard(wz: dict):
                 st.rerun()
         with col_next:
             if st.button(s2.get("next_button", "Continue →"), type="primary"):
-                intake["biometric"] = sel_biometric
-                intake["policing"] = sel_policing
-                intake["social_scoring"] = sel_social
-                intake["data_source"] = sel_data_source
-                us_set("step", 3)
-                st.rerun()
+                if not _require_selections(
+                    biometric=sel_biometric,
+                    policing=sel_policing,
+                    social_scoring=sel_social,
+                    data_source=sel_data_source,
+                ):
+                    pass
+                else:
+                    intake["biometric"] = sel_biometric
+                    intake["policing"] = sel_policing
+                    intake["social_scoring"] = sel_social
+                    intake["data_source"] = sel_data_source
+                    us_set("intake", intake)
+                    us_set("step", 3)
+                    st.rerun()
 
     # ── STEP 3: System Deployment & Human Oversight ──────────────────────────
     elif step == 3:
@@ -679,12 +702,21 @@ def _render_intake_wizard(wz: dict):
                 st.rerun()
         with col_next:
             if st.button(s3.get("next_button", "Continue →"), type="primary"):
-                intake["audience"] = sel_audience
-                intake["oversight"] = sel_oversight
-                intake["annex1"] = sel_annex1
-                intake["function"] = sel_function
-                us_set("step", 4)
-                st.rerun()
+                if not _require_selections(
+                    audience=sel_audience,
+                    oversight=sel_oversight,
+                    annex1=sel_annex1,
+                    function=sel_function,
+                ):
+                    pass
+                else:
+                    intake["audience"] = sel_audience
+                    intake["oversight"] = sel_oversight
+                    intake["annex1"] = sel_annex1
+                    intake["function"] = sel_function
+                    us_set("intake", intake)
+                    us_set("step", 4)
+                    st.rerun()
 
     # ── STEP 4: Evidence Upload & Intake Review ──────────────────────────────
     else:
