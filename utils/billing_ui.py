@@ -219,7 +219,7 @@ def render_pdf_export_action(
         )
         one_time_url = (
             build_stripe_one_time_checkout_url()
-            or "https://buy.stripe.com/YOUR_ONE_TIME_REPORT_STRIPE_LINK"
+            or "https://buy.stripe.com/fZu3cw4GQceVahGaF687K01"
         )
 
         with col1:
