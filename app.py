@@ -255,44 +255,50 @@ html, body, [class*="css"] {
     margin-bottom: 0.75rem;
 }
 
-/* ── Workspace section nav (horizontal tab-style radio) ─────────────────── */
-#workspace-nav + div[data-testid="stRadio"] > div {
-    flex-direction: row !important;
-    flex-wrap: nowrap;
-    gap: 0 !important;
-    border-bottom: 2px solid #E2E8F0;
-    margin-bottom: 1rem;
+/* ── Workspace tab bar (horizontal; distinct from wizard answer cards) ───── */
+.workspace-tab-bar-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #64748B;
+    margin: 0.25rem 0 0.65rem;
 }
-#workspace-nav + div[data-testid="stRadio"] label {
-    display: inline-flex !important;
-    width: auto !important;
-    flex: 0 0 auto;
-    background: transparent !important;
+.workspace-tab-bar-rule {
+    height: 2px;
+    background: #E2E8F0;
+    margin: 0.85rem 0 1.25rem;
+}
+div:has(#traceact-workspace-nav) + div[data-testid="stHorizontalBlock"] button[kind="primary"],
+div:has(#traceact-workspace-nav) + div button[kind="primary"] {
+    background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%) !important;
+    color: #FFFFFF !important;
     border: none !important;
-    border-bottom: 3px solid transparent !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    padding: 0.65rem 1.4rem !important;
-    font-size: 0.825rem;
-    font-weight: 500;
-    color: #64748B !important;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.22) !important;
+    font-weight: 600 !important;
+    border-radius: 10px !important;
+    min-height: 2.75rem !important;
 }
-#workspace-nav + div[data-testid="stRadio"] label:hover {
-    color: #2563EB !important;
-    background: transparent !important;
+div:has(#traceact-workspace-nav) + div[data-testid="stHorizontalBlock"] button[kind="secondary"],
+div:has(#traceact-workspace-nav) + div button[kind="secondary"] {
+    background: #F8FAFC !important;
+    color: #475569 !important;
+    border: 1px solid #E2E8F0 !important;
     box-shadow: none !important;
+    font-weight: 600 !important;
+    border-radius: 10px !important;
+    min-height: 2.75rem !important;
 }
-#workspace-nav + div[data-testid="stRadio"] label:has(input:checked) {
+div:has(#traceact-workspace-nav) + div[data-testid="stHorizontalBlock"] button[kind="secondary"]:hover,
+div:has(#traceact-workspace-nav) + div button[kind="secondary"]:hover {
+    border-color: #93C5FD !important;
     color: #2563EB !important;
-    border-bottom: 3px solid #2563EB !important;
-    background: transparent !important;
-    box-shadow: none !important;
-    font-weight: 600;
+    background: #EFF6FF !important;
 }
 
-/* ── Radio → card style ─────────────────────────────────────────────────────── */
-div[data-testid="stRadio"] > div { gap: 0.5rem; }
-div[data-testid="stRadio"] label {
+/* ── Wizard intake radios → card style (not workspace tabs) ─────────────── */
+div:has(#traceact-wizard-anchor) div[data-testid="stRadio"] > div { gap: 0.5rem; }
+div:has(#traceact-wizard-anchor) div[data-testid="stRadio"] label {
     display: flex;
     align-items: flex-start;
     gap: 0.6rem;
@@ -308,21 +314,21 @@ div[data-testid="stRadio"] label {
     line-height: 1.45;
     width: 100%;
 }
-div[data-testid="stRadio"] label:hover {
+div:has(#traceact-wizard-anchor) div[data-testid="stRadio"] label:hover {
     border-color: #93C5FD;
     background: #EFF6FF;
     box-shadow: 0 0 0 3px rgba(37,99,235,0.08);
 }
-div[data-testid="stRadio"] label:has(input:checked) {
+div:has(#traceact-wizard-anchor) div[data-testid="stRadio"] label:has(input:checked) {
     border-color: #2563EB;
     background: #EFF6FF;
     box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
     color: #1D4ED8;
     font-weight: 600;
 }
-/* Hide the native radio dot */
-div[data-testid="stRadio"] input[type="radio"] { display: none; }
-div[data-testid="stRadio"] > label:first-child { margin-bottom: 0; }
+/* Hide the native radio dot (wizard only) */
+div:has(#traceact-wizard-anchor) div[data-testid="stRadio"] input[type="radio"] { display: none; }
+div:has(#traceact-wizard-anchor) div[data-testid="stRadio"] > label:first-child { margin-bottom: 0; }
 
 /* ── Info / alert banner ────────────────────────────────────────────────────── */
 .custom-alert {

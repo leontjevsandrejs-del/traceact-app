@@ -407,14 +407,32 @@ def render_workspace_engine():
     ]))
     conformity_tab = tab_labels[2] if len(tab_labels) > 2 else "Conformity Assessment"
 
-    st.markdown('<div id="workspace-nav"></div>', unsafe_allow_html=True)
-    active_tab = st.radio(
-        "Workspace navigation",
-        options=tab_labels,
-        horizontal=True,
-        label_visibility="collapsed",
-        key=WORKSPACE_TAB_KEY,
+    if WORKSPACE_TAB_KEY not in st.session_state:
+        st.session_state[WORKSPACE_TAB_KEY] = tab_labels[0]
+
+    st.markdown(
+        '<div class="workspace-tab-bar-label">Workspace Navigation</div>',
+        unsafe_allow_html=True,
     )
+    st.markdown(
+        '<div id="traceact-workspace-nav" style="display:none;"></div>',
+        unsafe_allow_html=True,
+    )
+    nav_cols = st.columns(len(tab_labels), gap="small")
+    for label, col in zip(tab_labels, nav_cols):
+        with col:
+            is_active = st.session_state[WORKSPACE_TAB_KEY] == label
+            if st.button(
+                label,
+                key=f"traceact_ws_tab_{label.replace(' ', '_')}",
+                use_container_width=True,
+                type="primary" if is_active else "secondary",
+            ):
+                st.session_state[WORKSPACE_TAB_KEY] = label
+                st.rerun()
+
+    st.markdown('<div class="workspace-tab-bar-rule"></div>', unsafe_allow_html=True)
+    active_tab = st.session_state[WORKSPACE_TAB_KEY]
 
     if active_tab == tab_labels[0]:
         _render_intake_wizard(ws.get("wizard", {}))
@@ -523,6 +541,8 @@ def _render_step4_intake_workspace(s4: dict, intake: dict, wz: dict) -> None:
 
 def _render_intake_wizard(wz: dict):
     _section_header(wz.get("label", ""), wz.get("title", ""), wz.get("sub", ""))
+
+    st.markdown('<span id="traceact-wizard-anchor" style="display:none;"></span>', unsafe_allow_html=True)
 
     if not us_contains("step"):
         us_set("step", 1)
