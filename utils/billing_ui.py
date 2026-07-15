@@ -91,7 +91,9 @@ def ensure_description_widget_state(fallback: str = "") -> None:
 
 
 def sync_description_to_intake(intake: dict) -> None:
-    intake["description"] = st.session_state.get(DESCRIPTION_WIDGET_KEY, "")
+    pasted = st.session_state.get(DESCRIPTION_WIDGET_KEY, "")
+    intake["description"] = pasted
+    st.session_state["pasted_notes"] = pasted
     us_set("intake", intake)
     persist_session_draft()
 

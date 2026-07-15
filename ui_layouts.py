@@ -92,7 +92,11 @@ def compile_intake_content(pasted_notes: str, file_text: str) -> str:
 
 def refresh_intake_content(intake: dict, uploaded_file=None) -> str:
     """Compile Step 4 inputs into ``st.session_state['intake_content']``."""
-    pasted = st.session_state.get(DESCRIPTION_WIDGET_KEY, "").strip()
+    pasted = (
+        st.session_state.get(DESCRIPTION_WIDGET_KEY, "")
+        or intake.get("description", "")
+        or st.session_state.get("pasted_notes", "")
+    ).strip()
     file_text = ""
 
     if uploaded_file is not None:
@@ -101,16 +105,53 @@ def refresh_intake_content(intake: dict, uploaded_file=None) -> str:
             file_text = extracted
             st.session_state[UPLOADED_FILE_TEXT_KEY] = file_text
     else:
-        file_text = st.session_state.get(UPLOADED_FILE_TEXT_KEY, "").strip()
+        file_text = (
+            st.session_state.get(UPLOADED_FILE_TEXT_KEY, "")
+            or intake.get("evidence_text", "")
+        ).strip()
 
     content = compile_intake_content(pasted, file_text)
     st.session_state[INTAKE_CONTENT_KEY] = content
+    st.session_state["pasted_notes"] = pasted
     intake["intake_content"] = content
     intake["description"] = pasted
     intake["evidence_text"] = file_text
     us_set("intake", intake)
     persist_session_draft()
     return content
+
+
+def restore_pasted_notes_widget(intake: dict) -> None:
+    """Restore the Step 4 text area from persisted intake when remounting."""
+    saved = (intake.get("description") or st.session_state.get("pasted_notes", "")).strip()
+    current = st.session_state.get(DESCRIPTION_WIDGET_KEY, "")
+    if saved and not (current or "").strip():
+        st.session_state[DESCRIPTION_WIDGET_KEY] = saved
+    elif DESCRIPTION_WIDGET_KEY not in st.session_state:
+        st.session_state[DESCRIPTION_WIDGET_KEY] = saved
+
+
+def _on_pasted_notes_changed() -> None:
+    """Persist text-area edits immediately (survives workspace tab switches)."""
+    intake = us_get("intake", {})
+    st.session_state["pasted_notes"] = st.session_state.get(DESCRIPTION_WIDGET_KEY, "")
+    refresh_intake_content(intake)
+
+
+def get_active_intake_content(intake: dict) -> str:
+    """Return compiled intake evidence, rebuilding from all persisted sources."""
+    content = refresh_intake_content(intake).strip()
+    if content:
+        return content
+    content = (intake.get("intake_content") or st.session_state.get(INTAKE_CONTENT_KEY, "")).strip()
+    if content:
+        return content
+    pasted = (intake.get("description") or st.session_state.get("pasted_notes", "")).strip()
+    file_text = (
+        intake.get("evidence_text", "")
+        or st.session_state.get(UPLOADED_FILE_TEXT_KEY, "")
+    ).strip()
+    return compile_intake_content(pasted, file_text)
 
 ARTICLE_50_GUARDRAIL = """---
 ARTICLE 50 TEXT-GENERATION ANALYSIS RULE:
@@ -404,6 +445,7 @@ def _render_step4_intake_workspace(s4: dict, intake: dict, wz: dict) -> None:
     """, unsafe_allow_html=True)
 
     ensure_description_widget_state(intake.get("description", ""))
+    restore_pasted_notes_widget(intake)
 
     st.info(
         "Quick Tip: To get an accurate compliance roadmap, clearly outline your human "
@@ -433,6 +475,7 @@ def _render_step4_intake_workspace(s4: dict, intake: dict, wz: dict) -> None:
                 "Minimal Risk under the Act."
             ),
             key=DESCRIPTION_WIDGET_KEY,
+            on_change=_on_pasted_notes_changed,
         )
 
     refresh_intake_content(intake)
@@ -474,6 +517,7 @@ def _render_step4_intake_workspace(s4: dict, intake: dict, wz: dict) -> None:
     with col_done:
         if st.button(s4.get("confirm_button", "✓ Confirm Intake"), type="primary"):
             intake["confirmed"] = True
+            refresh_intake_content(intake)
             st.success(s4.get("confirm_success", "Intake locked."))
 
 
@@ -674,10 +718,13 @@ def _render_conformity_assessment(assess: dict, cc: dict):
 
     intake = us_get("intake", {})
     save_label = cc.get("save_button", "Download Certified PDF Report")
+    refresh_intake_content(intake)
 
     def _try_run_audit() -> None:
-        refresh_intake_content(intake)
-        intake_content = st.session_state.get(INTAKE_CONTENT_KEY, "").strip()
+        intake_content = get_active_intake_content(intake).strip()
+        st.session_state[INTAKE_CONTENT_KEY] = intake_content
+        intake["intake_content"] = intake_content
+        us_set("intake", intake)
         if not intake_content:
             st.warning(
                 "⚠️ Please upload a file or paste a product description to run the audit."

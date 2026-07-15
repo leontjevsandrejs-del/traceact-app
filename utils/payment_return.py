@@ -74,6 +74,7 @@ def restore_paid_draft(draft_id: str) -> bool:
     intake = snapshot.get("intake") or {}
     ensure_description_widget_state(intake.get("description", ""))
     st.session_state[DESCRIPTION_WIDGET_KEY] = intake.get("description", "")
+    st.session_state["pasted_notes"] = intake.get("description", "")
     st.session_state["intake_content"] = intake.get("intake_content", "")
     if intake.get("evidence_text"):
         st.session_state["uploaded_file_text"] = intake.get("evidence_text", "")
