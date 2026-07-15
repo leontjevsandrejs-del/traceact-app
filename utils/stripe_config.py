@@ -11,6 +11,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+DEFAULT_ONE_TIME_REPORT_PAYMENT_LINK = (
+    "https://buy.stripe.com/fZu3cw4GQceVahGaF687K01"
+)
+
 
 def sanitize_env_string(value: str | None) -> str:
     """Strip whitespace, newlines, and stray quotation marks from env values."""
@@ -105,11 +109,11 @@ def get_stripe_growth_payment_link() -> str:
 
 def get_stripe_one_time_payment_link() -> str:
     """
-    Resolve the single-report one-time Payment Link URL.
+    Resolve the single-report one-time Payment Link URL (€149).
 
     1. ``st.secrets.get("STRIPE_ONE_TIME_PAYMENT_LINK")`` (Streamlit Cloud)
     2. ``os.getenv("STRIPE_ONE_TIME_PAYMENT_LINK")`` (local)
-    3. Falls back to ``STRIPE_PAYMENT_LINK`` for legacy one-time checkout
+    3. Built-in €149 report link (never the legacy ``STRIPE_PAYMENT_LINK``)
     """
     one_time_link = ""
     try:
@@ -123,7 +127,7 @@ def get_stripe_one_time_payment_link() -> str:
             os.getenv("STRIPE_ONE_TIME_PAYMENT_LINK", "")
         )
     if not one_time_link:
-        one_time_link = get_stripe_payment_link()
+        one_time_link = DEFAULT_ONE_TIME_REPORT_PAYMENT_LINK
     return one_time_link
 
 

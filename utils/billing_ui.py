@@ -8,6 +8,7 @@ import streamlit as st
 
 from utils.draft_store import ensure_session_draft_id, persist_session_draft
 from utils.stripe_config import (
+    DEFAULT_ONE_TIME_REPORT_PAYMENT_LINK,
     get_stripe_payment_link,
     get_stripe_growth_payment_link,
     get_stripe_one_time_payment_link,
@@ -219,7 +220,7 @@ def render_pdf_export_action(
         )
         one_time_url = (
             build_stripe_one_time_checkout_url()
-            or "https://buy.stripe.com/fZu3cw4GQceVahGaF687K01"
+            or f"{DEFAULT_ONE_TIME_REPORT_PAYMENT_LINK}"
         )
 
         with col1:
