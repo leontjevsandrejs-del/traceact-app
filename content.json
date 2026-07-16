@@ -6,7 +6,7 @@
     "operator_line": "A TraceAct product · Operated by PV Services SIA (Latvia)"
   },
   "workspace": {
-    "tabs": ["System Triage", "Evidence Vault", "Conformity Assessment"],
+    "tabs": ["AI System Intake", "Evidence Upload", "Conformity Assessment"],
     "wizard": {
       "label": "Smart Compliance Wizard",
       "title": "Enterprise AI System Intake",

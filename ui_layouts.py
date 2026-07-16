@@ -401,8 +401,8 @@ def render_workspace_engine():
     """Multi-agent questionnaire wizard, compliance tracking, and PDF hooks."""
     ws = _c("workspace", default={})
     tab_labels = list(_c("workspace", "tabs", default=[
-        "System Triage",
-        "Evidence Vault",
+        "AI System Intake",
+        "Evidence Upload",
         "Conformity Assessment",
     ]))
     conformity_tab = tab_labels[2] if len(tab_labels) > 2 else "Conformity Assessment"
