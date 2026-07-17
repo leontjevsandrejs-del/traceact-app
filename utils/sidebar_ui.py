@@ -66,3 +66,35 @@ def render_enterprise_sidebar() -> None:
                         key=f"sidebar_audit_download_{audit.audit_id}",
                         use_container_width=True,
                     )
+
+        # Dev-only: verify Supabase SSL + table wiring (collapsed / non-prominent)
+        with st.expander("🛠 Developer", expanded=False):
+            if st.button(
+                "Test Database Connection",
+                key="supabase_db_connection_test",
+                use_container_width=True,
+            ):
+                from utils.supabase_db import (
+                    get_supabase_client,
+                    insert_connection_test_row,
+                )
+
+                client = get_supabase_client()
+                if client is None:
+                    st.error(
+                        "Supabase client unavailable. Set SUPABASE_URL and "
+                        "SUPABASE_KEY in Streamlit secrets."
+                    )
+                else:
+                    row = insert_connection_test_row()
+                    if row:
+                        st.success(
+                            "Database connection OK — mock row written to "
+                            f"`audit_reports` (id={row.get('id', 'n/a')})."
+                        )
+                    else:
+                        st.error(
+                            "Connection reached Supabase but the insert failed. "
+                            "Confirm the SQL schema is applied and the key has "
+                            "insert rights on `audit_reports`."
+                        )

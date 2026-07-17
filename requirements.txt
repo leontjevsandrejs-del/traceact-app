@@ -6,4 +6,5 @@ google-auth>=2.0.0
 python-dotenv==1.0.1
 pypdf==4.2.0
 fpdf2==2.8.7
+supabase>=2.4.0
 
