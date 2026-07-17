@@ -60,6 +60,16 @@ if st.query_params.get("vault") == "TraceAct_Secure_Pass_2026":
 st.session_state.setdefault("b2b_tier", "Sandbox")
 st.session_state.setdefault("history_logs", [])
 
+# ── Auth defaults (guest until Supabase Login / Register) ─────────────────
+from utils.auth_session import (
+    get_auth_email,
+    get_company_name,
+    init_auth_state,
+    is_logged_in,
+)
+
+init_auth_state()
+
 # ── Persistent session draft (mirrored to data/drafts.json) ───────────────
 from utils.draft_store import ensure_session_draft_id, persist_session_draft
 
@@ -631,6 +641,17 @@ div[data-testid="stLinkButton"] > a:hover {
 
 # ── Corporate dashboard header (copy pulled from the content database) ────
 _app_copy = _content.get("app", {})
+_member_mode = is_logged_in()
+_header_title = (
+    "Premium Compliance Workspace"
+    if _member_mode
+    else _app_copy.get("header_title", "")
+)
+_header_tagline = (
+    "Persistent tracking dashboard · European data residency (europe-west1)"
+    if _member_mode
+    else _app_copy.get("header_tagline", "")
+)
 st.markdown(f"""
 <div style="display:flex;align-items:center;gap:14px;padding:1rem 0 0.25rem;">
   <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -643,15 +664,34 @@ st.markdown(f"""
   </svg>
   <div>
     <div style="font-size:1.55rem;font-weight:700;color:#0F172A;line-height:1.2;letter-spacing:-0.02em;">
-      {_app_copy.get("header_title", "")}
+      {_header_title}
     </div>
     <div style="font-size:0.8rem;color:#64748B;font-weight:400;margin-top:1px;">
-      {_app_copy.get("header_tagline", "")}
+      {_header_tagline}
     </div>
   </div>
 </div>
 <div style="height:1px;background:linear-gradient(90deg,#2563EB 0%,#E2E8F0 55%);margin:1rem 0 1.25rem;"></div>
 """, unsafe_allow_html=True)
+
+if _member_mode:
+    _member_email = get_auth_email() or ""
+    _member_company = get_company_name()
+    _welcome_detail = (
+        f" · {_member_company}" if _member_company else ""
+    )
+    st.success(
+        f"Welcome back, Member{_welcome_detail}"
+        + (f" ({_member_email})" if _member_email else "")
+    )
+else:
+    st.markdown(
+        '<div class="sandbox-preview-banner">'
+        "🔒 ZERO-RETENTION SANDBOX — Guest sessions are not stored. "
+        "Register or log in to save audits and track compliance tasks."
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
 render_enterprise_sidebar()
 render_workspace_engine()

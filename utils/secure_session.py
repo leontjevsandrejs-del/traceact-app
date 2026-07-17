@@ -100,6 +100,21 @@ def establish_secure_cookie_session(user_id: str, email: str) -> None:
 
 def restore_workspace_identity() -> bool:
     """Apply a validated secure session token to the Streamlit workspace identity."""
+    # Supabase Auth member sessions take precedence over Stripe cookie identity.
+    try:
+        from utils.auth_session import is_logged_in, get_auth_user_id, get_auth_email
+
+        if is_logged_in() and get_auth_user_id():
+            from utils.user_session import activate_workspace_user
+
+            activate_workspace_user(
+                get_auth_user_id(),
+                get_auth_email() or "",
+            )
+            return True
+    except Exception:
+        pass
+
     session = current_secure_session()
     if not session:
         return False

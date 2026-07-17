@@ -45,6 +45,8 @@ from utils.knowledge import load_legal_knowledge_base, knowledge_base_inventory
 from utils.report_gen import generate_pdf_report
 from utils.user_session import us_get, us_set, us_pop, us_contains, current_user_id, current_user_email
 from utils.tenant_db import archive_purchased_audit
+from utils.auth_session import get_auth_user_id, is_logged_in
+from utils.supabase_db import persist_member_audit
 from utils.billing_ui import (
     WORKSPACE_TAB_KEY,
     consume_auto_run_assessment,
@@ -1068,6 +1070,63 @@ def _run_audit_pipeline(client, intake: dict, assess: dict):
         us_set("audit_date", date.today().isoformat())
         us_pop("obligations_df", None)
         us_set("audit_complete", True)
+
+        # Member Mode only: persist profile + report + compliance tasks to Supabase.
+        # Guests remain zero-retention (screen preview only).
+        if is_logged_in():
+            member_uid = get_auth_user_id() or current_user_id()
+            obligations_df = build_obligations_register(intake, system_risk_status)
+            compliance_tasks = []
+            for _, row in obligations_df.iterrows():
+                compliance_tasks.append({
+                    "title": str(row.get("Obligation", "")),
+                    "description": str(row.get("Description", "")),
+                    "citation": str(row.get("Legal Basis", "")),
+                    "status": "open",
+                })
+            for item in clarification_matrix or []:
+                topic = str(item.get("topic") or "Clarification required")
+                compliance_tasks.append({
+                    "title": f"Clarify: {topic}",
+                    "description": str(item.get("question") or item.get("why_it_matters") or ""),
+                    "citation": str(item.get("citation") or ""),
+                    "status": "open",
+                })
+            audit_results_payload = {
+                "risk_tier": system_risk_status,
+                "risk_citation": risk_citation,
+                "audit_date": date.today().isoformat(),
+                "report_markdown": us_get("report_markdown", ""),
+                "decision_path": list(classification.decision_path),
+                "annex_iv_summary": [
+                    {
+                        "component_id": f.component_id,
+                        "title": f.title,
+                        "status": f.status,
+                        "citation": f.citation,
+                    }
+                    for f in (annex_iv_findings or [])
+                ],
+                "clarification_matrix": clarification_matrix or [],
+            }
+            system_profile_payload = {
+                **dict(intake),
+                "system_name": (
+                    intake.get("company")
+                    or intake.get("industry")
+                    or "AI System"
+                ),
+                "company_name": intake.get("company") or "",
+            }
+            try:
+                persist_member_audit(
+                    member_uid,
+                    system_profile_payload,
+                    audit_results_payload,
+                    compliance_tasks=compliance_tasks,
+                )
+            except Exception:
+                pass
 
         if is_pdf_export_unlocked():
             system_name = (
