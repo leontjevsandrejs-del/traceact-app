@@ -24,10 +24,16 @@ st.set_page_config(
 
 st.markdown("""
     <style>
-    /* 1. Hide default Streamlit framework watermarks and developer menus */
+    /* 1. Hide default Streamlit framework watermarks — keep header for sidebar toggle */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    header {visibility: hidden;}
+    [data-testid="stToolbar"] {visibility: hidden;}
+    [data-testid="stDecoration"] {visibility: hidden;}
+    [data-testid="stSidebarCollapsedControl"] {
+        visibility: visible !important;
+        display: flex !important;
+        color: #2563EB !important;
+    }
     
     /* 2. Tighten the infinite screen padding to create an intentional dashboard frame */
     .block-container {
@@ -118,6 +124,9 @@ def initialize_content() -> None:
 initialize_content()
 _content = st.session_state.content
 
+# Sidebar must mount early so guests always see login/register controls.
+render_enterprise_sidebar()
+
 # ── Global corporate CSS (dark/light professional palette) ────────────────
 st.markdown("""
 <style>
@@ -130,8 +139,19 @@ html, body, [class*="css"] {
     color: #1E293B;
 }
 
-/* ── Hide default Streamlit chrome ─────────────────────────────────────────── */
-#MainMenu, footer, header { visibility: hidden; }
+/* ── Hide default Streamlit chrome (preserve sidebar panel toggle) ─────────── */
+#MainMenu, footer { visibility: hidden; }
+[data-testid="stToolbar"] { visibility: hidden; }
+[data-testid="stDecoration"] { visibility: hidden; }
+[data-testid="stSidebarCollapsedControl"] {
+    visibility: visible !important;
+    display: flex !important;
+    color: #2563EB !important;
+    z-index: 999999;
+}
+[data-testid="stSidebar"] {
+    visibility: visible !important;
+}
 .block-container { padding-top: 1.5rem; padding-bottom: 2rem; max-width: 1200px; }
 
 /* ── Top navigation (st.navigation position=top) ───────────────────────────── */
@@ -698,7 +718,6 @@ else:
         unsafe_allow_html=True,
     )
 
-render_enterprise_sidebar()
 render_workspace_engine()
 
 with st.expander(

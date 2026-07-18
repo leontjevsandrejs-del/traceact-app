@@ -10,6 +10,7 @@ import streamlit as st
 
 from utils.audit_archive import get_purchased_audits
 from utils.auth_session import (
+    LOGGED_IN_KEY,
     get_auth_email,
     get_company_name,
     is_logged_in,
@@ -27,21 +28,13 @@ def _format_generation_date(iso_date: str) -> str:
         return iso_date
 
 
-def _render_user_account_section() -> None:
-    """Login / Register gate — Supabase Auth."""
-    st.markdown("#### 👤 User Account")
-
-    if is_logged_in():
-        email = get_auth_email() or current_user_email()
-        company = get_company_name()
-        st.success("Signed in")
-        st.caption(email)
-        if company:
-            st.caption(f"Company: {company}")
-        if st.button("Log out", key="auth_logout_btn", use_container_width=True):
-            logout_user()
-            st.rerun()
-        return
+def _render_guest_auth_portal() -> None:
+    """Explicit login / register forms for non-authenticated visitors."""
+    st.markdown("#### 🔐 Account Access")
+    st.caption(
+        "Register or log in to unlock persistent audits, the QMS workspace, "
+        "and compliance task tracking."
+    )
 
     login_tab, register_tab = st.tabs(["Login", "Register"])
 
@@ -81,12 +74,27 @@ def _render_user_account_section() -> None:
                     st.error(message)
 
 
+def _render_member_account_section() -> None:
+    """Signed-in member summary and logout."""
+    st.markdown("#### 👤 User Account")
+    email = get_auth_email() or current_user_email()
+    company = get_company_name()
+    st.success("Signed in")
+    st.caption(email)
+    if company:
+        st.caption(f"Company: {company}")
+    if st.button("Log out", key="auth_logout_btn", use_container_width=True):
+        logout_user()
+        st.rerun()
+
+
 def render_enterprise_sidebar() -> None:
-    """Permanent corporate workspace card and certified report library."""
+    """Permanent corporate workspace card, auth portal, and report library."""
     uid = current_user_id()
     email = current_user_email()
+    logged_in = bool(st.session_state.get(LOGGED_IN_KEY, False)) or is_logged_in()
 
-    if is_logged_in():
+    if logged_in:
         title = "🏢 Traceact Corporate Workspace"
         subtitle = f"👤 {get_auth_email() or email}"
     elif is_activated_user():
@@ -97,13 +105,19 @@ def render_enterprise_sidebar() -> None:
         subtitle = "👤 Guest Auditor (Zero-Retention)"
 
     with st.sidebar:
+        # Guests: auth portal is always first and always visible.
+        if not logged_in:
+            _render_guest_auth_portal()
+            st.divider()
+
         st.markdown(f"### {title}")
         st.caption(subtitle)
-        st.divider()
 
-        _render_user_account_section()
-        st.divider()
+        if logged_in:
+            st.divider()
+            _render_member_account_section()
 
+        st.divider()
         st.markdown("#### 📂 Certified Report Library")
 
         audits = get_purchased_audits(user_email=email, user_id=uid)
