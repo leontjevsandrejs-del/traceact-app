@@ -70,6 +70,11 @@ from utils.auth_session import (
 
 init_auth_state()
 
+# ── FRIA triage defaults (high-risk sector flag + questionnaire payload) ─
+from utils.fria_triage import ensure_triage_state
+
+ensure_triage_state()
+
 # ── Persistent session draft (mirrored to data/drafts.json) ───────────────
 from utils.draft_store import ensure_session_draft_id, persist_session_draft
 

@@ -43,7 +43,22 @@
         "hint_annex1": "Machinery, medical devices, vehicles, toys, lifts, radio equipment and similar products requiring third-party conformity assessment trigger high-risk status via Article 6(1) and Annex I.",
         "q_function": "What functional role does the system play in decisions about natural persons?",
         "hint_function": "Article 6(3) exempts narrow procedural, preparatory, refinement, or pattern-flagging tasks from high-risk status — unless the system performs profiling, which makes the exemption statutorily unavailable.",
-        "next_button": "Continue to Evidence & Review →"
+        "next_button": "Continue to Evidence & Review →",
+        "next_button_fria": "Continue to FRIA Assessment →"
+      },
+      "step3a": {
+        "label": "Step 3A — Fundamental Rights Impact Assessment (FRIA)",
+        "sub": "Article 27 requires deployers of high-risk AI systems to assess fundamental rights impacts before putting the system into service. Complete each field below.",
+        "q_intended_purpose": "Intended purpose and deployment context",
+        "hint_intended_purpose": "Describe what the system does, where it is deployed, and the operational context in which decisions are taken.",
+        "q_affected_persons": "Specific categories of natural persons affected",
+        "hint_affected_persons": "Identify the groups subject to the system's outputs (e.g. job applicants, credit applicants, patients).",
+        "q_rights_risks": "Environmental or human rights risks identified",
+        "hint_rights_risks": "Document any foreseeable impacts on fundamental rights, dignity, non-discrimination, or the environment.",
+        "q_human_oversight": "Human oversight protocols established",
+        "hint_human_oversight": "Explain how trained humans supervise, override, or interrupt the system under Article 14.",
+        "next_button": "Continue to Evidence & Review →",
+        "back_button": "← Back"
       },
       "step4": {
         "label": "Step 04 — Evidence Upload &amp; Intake Review",

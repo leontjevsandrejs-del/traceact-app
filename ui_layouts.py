@@ -58,6 +58,13 @@ from utils.billing_ui import (
     DESCRIPTION_WIDGET_KEY,
 )
 from utils.draft_store import persist_session_draft
+from utils.fria_triage import (
+    FRIA_DATA_DEFAULTS,
+    apply_high_risk_triage,
+    evidence_step_number,
+    fria_step_active,
+    fria_step_number,
+)
 
 INTAKE_CONTENT_KEY = "intake_content"
 UPLOADED_FILE_TEXT_KEY = "uploaded_file_text"
@@ -363,9 +370,22 @@ def _section_header(label: str, title: str, sub: str) -> None:
     """, unsafe_allow_html=True)
 
 
-def _wizard_step_header(current: int) -> str:
-    labels = _c("workspace", "wizard", "step_labels",
-                default=["Step 1", "Step 2", "Step 3", "Step 4"])
+def _wizard_step_labels(high_risk: bool) -> list[str]:
+    labels = list(_c(
+        "workspace", "wizard", "step_labels",
+        default=["Sector Profile", "Data Footprint", "Deployment & Oversight", "Evidence & Review"],
+    ))
+    if high_risk:
+        if len(labels) >= 4:
+            return labels[:3] + ["FRIA Assessment"] + [labels[3]]
+        return labels[:3] + ["FRIA Assessment", "Evidence & Review"]
+    return labels[:4]
+
+
+def _wizard_step_header(current: int, high_risk: bool | None = None) -> str:
+    if high_risk is None:
+        high_risk = fria_step_active()
+    labels = _wizard_step_labels(high_risk)
     cells = []
     for i, label in enumerate(labels, start=1):
         if i < current:
@@ -458,7 +478,9 @@ def _process_step4_upload(wizard_file, intake: dict, s4: dict) -> None:
     refresh_intake_content(intake, wizard_file=None)
 
 
-def _render_step4_intake_workspace(s4: dict, intake: dict, wz: dict) -> None:
+def _render_step4_intake_workspace(
+    s4: dict, intake: dict, wz: dict, *, back_step: int = 3,
+) -> None:
     st.markdown(f"""
     <div class="section-label" style="margin-bottom:0.6rem;">{s4.get("label", "")}</div>
     <div class="section-sub">{s4.get("sub", "")}</div>
@@ -532,13 +554,106 @@ def _render_step4_intake_workspace(s4: dict, intake: dict, wz: dict) -> None:
     col_back, col_done = st.columns([1, 5])
     with col_back:
         if st.button(s4.get("back_button", "← Back")):
-            us_set("step", 3)
+            us_set("step", back_step)
             st.rerun()
     with col_done:
         if st.button(s4.get("confirm_button", "✓ Confirm Intake"), type="primary"):
             intake["confirmed"] = True
             refresh_intake_content(intake)
             st.success(s4.get("confirm_success", "Intake locked."))
+
+
+def _render_fria_step(s3a: dict, intake: dict) -> None:
+    """Step 3A — mandatory FRIA questionnaire for high-risk sector triage."""
+    st.markdown(f"""
+    <div class="section-label" style="margin-bottom:0.6rem;">{s3a.get("label", "Step 3A — Fundamental Rights Impact Assessment (FRIA)")}</div>
+    <div class="section-sub">{s3a.get("sub", "")}</div>
+    """, unsafe_allow_html=True)
+
+    fria = dict(st.session_state.get("fria_data") or FRIA_DATA_DEFAULTS)
+    field_keys = {
+        "intended_purpose": "fria_intended_purpose",
+        "affected_persons": "fria_affected_persons",
+        "rights_risks": "fria_rights_risks",
+        "human_oversight": "fria_human_oversight",
+    }
+    for field, widget_key in field_keys.items():
+        if widget_key not in st.session_state:
+            st.session_state[widget_key] = fria.get(field, "")
+
+    _question(
+        s3a.get("q_intended_purpose", "Intended purpose and deployment context"),
+        s3a.get("hint_intended_purpose", ""),
+    )
+    st.text_area(
+        "Intended purpose and deployment context",
+        height=120,
+        key="fria_intended_purpose",
+        label_visibility="collapsed",
+    )
+
+    _question(
+        s3a.get("q_affected_persons", "Specific categories of natural persons affected"),
+        s3a.get("hint_affected_persons", ""),
+        spaced=True,
+    )
+    st.text_area(
+        "Affected persons",
+        height=100,
+        key="fria_affected_persons",
+        label_visibility="collapsed",
+    )
+
+    _question(
+        s3a.get("q_rights_risks", "Environmental or human rights risks identified"),
+        s3a.get("hint_rights_risks", ""),
+        spaced=True,
+    )
+    st.text_area(
+        "Rights and environmental risks",
+        height=100,
+        key="fria_rights_risks",
+        label_visibility="collapsed",
+    )
+
+    _question(
+        s3a.get("q_human_oversight", "Human oversight protocols established"),
+        s3a.get("hint_human_oversight", ""),
+        spaced=True,
+    )
+    st.text_area(
+        "Human oversight protocols",
+        height=100,
+        key="fria_human_oversight",
+        label_visibility="collapsed",
+    )
+
+    st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
+    col_back, col_next = st.columns([1, 5])
+    with col_back:
+        if st.button(s3a.get("back_button", "← Back"), key="fria_back_btn"):
+            us_set("step", 3)
+            st.rerun()
+    with col_next:
+        if st.button(
+            s3a.get("next_button", "Continue to Evidence & Review →"),
+            type="primary",
+            key="fria_continue_btn",
+        ):
+            payload = {
+                "intended_purpose": str(st.session_state.get("fria_intended_purpose", "")).strip(),
+                "affected_persons": str(st.session_state.get("fria_affected_persons", "")).strip(),
+                "rights_risks": str(st.session_state.get("fria_rights_risks", "")).strip(),
+                "human_oversight": str(st.session_state.get("fria_human_oversight", "")).strip(),
+            }
+            if not all(payload.values()):
+                st.warning("Please complete every FRIA field before continuing.")
+            else:
+                st.session_state.fria_data = payload
+                intake["fria_data"] = payload
+                us_set("intake", intake)
+                us_set("step", evidence_step_number())
+                st.rerun()
 
 
 def _render_intake_wizard(wz: dict):
@@ -554,7 +669,19 @@ def _render_intake_wizard(wz: dict):
     intake = us_get("intake", {})
     step = us_get("step", 1)
 
-    st.markdown(_wizard_step_header(step), unsafe_allow_html=True)
+    if intake.get("industry"):
+        apply_high_risk_triage(intake.get("industry"))
+
+    high_risk = fria_step_active()
+    display_step = step
+    if high_risk and step >= evidence_step_number():
+        display_step = step
+    elif not high_risk and step > 4:
+        us_set("step", 4)
+        step = 4
+        display_step = 4
+
+    st.markdown(_wizard_step_header(display_step, high_risk), unsafe_allow_html=True)
 
     def _saved_index(options, key):
         saved = intake.get(key)
@@ -608,6 +735,7 @@ def _render_intake_wizard(wz: dict):
                 intake["industry"] = sel_industry
                 intake["company"] = sel_company.strip()
                 intake["role"] = sel_role
+                apply_high_risk_triage(sel_industry)
                 us_set("intake", intake)
                 us_set("step", 2)
                 st.rerun()
@@ -723,7 +851,13 @@ def _render_intake_wizard(wz: dict):
                 us_set("step", 2)
                 st.rerun()
         with col_next:
-            if st.button(s3.get("next_button", "Continue →"), type="primary"):
+            if st.button(
+                s3.get(
+                    "next_button_fria" if fria_step_active() else "next_button",
+                    "Continue →",
+                ),
+                type="primary",
+            ):
                 if not _require_selections(
                     audience=sel_audience,
                     oversight=sel_oversight,
@@ -737,12 +871,27 @@ def _render_intake_wizard(wz: dict):
                     intake["annex1"] = sel_annex1
                     intake["function"] = sel_function
                     us_set("intake", intake)
-                    us_set("step", 4)
+                    us_set("step", fria_step_number() if fria_step_active() else evidence_step_number())
                     st.rerun()
 
-    # ── STEP 4: Evidence Upload & Intake Review ──────────────────────────────
+    # ── STEP 3A: FRIA (high-risk sectors only) ───────────────────────────────
+    elif step == fria_step_number() and fria_step_active():
+        _render_fria_step(wz.get("step3a", {}), intake)
+
+    # ── STEP 4 / 5: Evidence Upload & Intake Review ──────────────────────────
+    elif step == evidence_step_number():
+        back_step = fria_step_number() if fria_step_active() else 3
+        _render_step4_intake_workspace(
+            wz.get("step4", {}), intake, wz, back_step=back_step,
+        )
+
+    elif step > evidence_step_number():
+        us_set("step", evidence_step_number())
+        st.rerun()
+
     else:
-        _render_step4_intake_workspace(wz.get("step4", {}), intake, wz)
+        us_set("step", 1)
+        st.rerun()
 
 
 def _render_evidence_vault(ev: dict):
