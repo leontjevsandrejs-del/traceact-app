@@ -65,6 +65,7 @@ from utils.fria_triage import (
     fria_step_active,
     fria_step_number,
 )
+from utils.qms_dashboard import qms_tab_label, render_qms_dashboard
 
 INTAKE_CONTENT_KEY = "intake_content"
 UPLOADED_FILE_TEXT_KEY = "uploaded_file_text"
@@ -419,18 +420,40 @@ def _question(label: str, hint: str, spaced: bool = False) -> None:
 # VIEW 1 — Compliance Workspace Engine
 # ══════════════════════════════════════════════════════════════════════════════
 
-def render_workspace_engine():
-    """Multi-agent questionnaire wizard, compliance tracking, and PDF hooks."""
-    ws = _c("workspace", default={})
-    tab_labels = list(_c("workspace", "tabs", default=[
+def _workspace_tab_labels(ws: dict) -> list[str]:
+    """Guest tabs + member-only QMS workspace tab when authenticated."""
+    base = list(ws.get("tabs") or _c("workspace", "tabs", default=[
         "AI System Intake",
         "Evidence Upload",
         "Conformity Assessment",
     ]))
-    conformity_tab = tab_labels[2] if len(tab_labels) > 2 else "Conformity Assessment"
+    if not is_logged_in():
+        return base
+    qms_label = qms_tab_label(ws.get("qms", {}))
+    if qms_label in base:
+        return base
+    if len(base) >= 3:
+        return base[:2] + [qms_label] + base[2:]
+    return base + [qms_label]
+
+
+def render_workspace_engine():
+    """Multi-agent questionnaire wizard, compliance tracking, and PDF hooks."""
+    ws = _c("workspace", default={})
+    tab_labels = _workspace_tab_labels(ws)
+    conformity_tab = next(
+        (t for t in tab_labels if "Conformity" in t),
+        "Conformity Assessment",
+    )
+    qms_tab = qms_tab_label(ws.get("qms", {}))
 
     if WORKSPACE_TAB_KEY not in st.session_state:
         st.session_state[WORKSPACE_TAB_KEY] = tab_labels[0]
+
+    active_tab = st.session_state[WORKSPACE_TAB_KEY]
+    if active_tab == qms_tab and not is_logged_in():
+        st.session_state[WORKSPACE_TAB_KEY] = tab_labels[0]
+        active_tab = tab_labels[0]
 
     st.markdown(
         '<div class="workspace-tab-bar-label">Workspace Navigation</div>',
@@ -460,6 +483,8 @@ def render_workspace_engine():
         _render_intake_wizard(ws.get("wizard", {}))
     elif active_tab == tab_labels[1]:
         _render_evidence_vault(ws.get("evidence", {}))
+    elif active_tab == qms_tab:
+        render_qms_dashboard(ws.get("qms", {}))
     elif active_tab == conformity_tab:
         _render_conformity_assessment(ws.get("assessment", {}),
                                       ws.get("command_center", {}))
@@ -1232,6 +1257,7 @@ def _run_audit_pipeline(client, intake: dict, assess: dict):
                     "description": str(row.get("Description", "")),
                     "citation": str(row.get("Legal Basis", "")),
                     "status": "open",
+                    "framework_mapping": "EU AI Act",
                 })
             for item in clarification_matrix or []:
                 topic = str(item.get("topic") or "Clarification required")
@@ -1240,6 +1266,7 @@ def _run_audit_pipeline(client, intake: dict, assess: dict):
                     "description": str(item.get("question") or item.get("why_it_matters") or ""),
                     "citation": str(item.get("citation") or ""),
                     "status": "open",
+                    "framework_mapping": "EU AI Act",
                 })
             audit_results_payload = {
                 "risk_tier": system_risk_status,

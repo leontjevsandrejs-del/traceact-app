@@ -105,6 +105,23 @@
       "obligations_sub": "Track each statutory duty to closure. Status choices and notes save instantly to your session workspace.",
       "calendar_label": "Regulatory Deadline Timeline",
       "calendar_sub": "Deadlines are computed from your assessment date and intake profile — earliest first."
+    },
+    "qms": {
+      "tab_label": "QMS Workspace",
+      "label": "Integrated Quality Management System",
+      "title": "Compliance Task Tracking Board",
+      "sub": "Monitor outstanding obligations across regulatory frameworks. Update statuses and sync progress to your enterprise vault.",
+      "metric_total": "Total Tasks",
+      "metric_in_progress": "In Progress",
+      "metric_compliant": "Fully Compliant",
+      "col_title": "Obligation",
+      "col_framework": "Framework",
+      "col_status": "Status",
+      "save_button": "Save Workspace Progress",
+      "save_success": "Workspace progress synced to Supabase.",
+      "save_error": "Could not sync task statuses. Check Supabase connectivity.",
+      "login_required": "Sign in to access the Integrated QMS tracking workspace.",
+      "empty_state": "No compliance tasks yet. Run a Conformity Assessment while signed in to populate your QMS workspace automatically."
     }
   },
   "risk_tiers": {

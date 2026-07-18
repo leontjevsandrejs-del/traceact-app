@@ -175,6 +175,9 @@ def save_compliance_tasks(
             "description": str(raw.get("description") or "")[:4000] or None,
             "status": status,
             "citation": str(raw.get("citation") or "")[:500] or None,
+            "framework_mapping": str(
+                raw.get("framework_mapping") or "EU AI Act"
+            )[:100],
         }
         due = raw.get("due_date")
         if due:
@@ -233,3 +236,108 @@ def insert_connection_test_row() -> dict[str, Any] | None:
             "message": "Mock entry confirming API communication and schema.",
         },
     )
+
+
+# ── QMS dashboard: status vocabulary (DB ↔ UI) ───────────────────────────────
+
+QMS_STATUS_UI_OPTIONS = ("Not Started", "In Progress", "Compliant")
+
+_DB_TO_UI_STATUS = {
+    "open": "Not Started",
+    "in_progress": "In Progress",
+    "done": "Compliant",
+    "blocked": "Not Started",
+}
+
+_UI_TO_DB_STATUS = {
+    "Not Started": "open",
+    "In Progress": "in_progress",
+    "Compliant": "done",
+}
+
+
+def db_status_to_ui(status: str | None) -> str:
+    key = str(status or "open").strip().lower()
+    return _DB_TO_UI_STATUS.get(key, "Not Started")
+
+
+def ui_status_to_db(status: str | None) -> str:
+    label = str(status or "Not Started").strip()
+    return _UI_TO_DB_STATUS.get(label, "open")
+
+
+def fetch_compliance_tasks_for_user(user_id: str) -> list[dict[str, Any]]:
+    """
+    Load QMS task rows for the interactive dashboard.
+
+    Returns dicts with keys: id, title, framework_mapping, status (UI labels).
+    """
+    uid = (user_id or "").strip()
+    if not uid:
+        return []
+
+    try:
+        client = get_supabase_client()
+        if client is None:
+            return []
+
+        response = (
+            client.table(COMPLIANCE_TASKS_TABLE)
+            .select("id, title, framework_mapping, status")
+            .eq("user_id", uid)
+            .order("created_at", desc=False)
+            .execute()
+        )
+        rows = getattr(response, "data", None) or []
+        results: list[dict[str, Any]] = []
+        for row in rows:
+            results.append({
+                "id": str(row.get("id", "")),
+                "title": str(row.get("title") or ""),
+                "framework_mapping": str(
+                    row.get("framework_mapping") or "EU AI Act"
+                ),
+                "status": db_status_to_ui(row.get("status")),
+            })
+        return results
+    except Exception as exc:
+        logger.exception("fetch_compliance_tasks_for_user failed: %s", exc)
+        return []
+
+
+def update_compliance_task_statuses(updates: list[dict[str, str]]) -> int:
+    """
+    Persist edited QMS task statuses.
+
+    Each update dict must include ``id`` and ``status`` (UI label).
+    Returns the count of successfully updated rows.
+    """
+    if not updates:
+        return 0
+
+    client = get_supabase_client()
+    if client is None:
+        return 0
+
+    updated = 0
+    for item in updates:
+        task_id = str(item.get("id") or "").strip()
+        if not task_id:
+            continue
+        db_status = ui_status_to_db(item.get("status"))
+        try:
+            (
+                client.table(COMPLIANCE_TASKS_TABLE)
+                .update({"status": db_status})
+                .eq("id", task_id)
+                .execute()
+            )
+            updated += 1
+        except Exception as exc:
+            logger.exception(
+                "update_compliance_task_statuses failed for %s: %s",
+                task_id,
+                exc,
+            )
+    return updated
+
