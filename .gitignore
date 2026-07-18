@@ -34,3 +34,4 @@ Thumbs.db
 # Misc generated
 hash_verification.txt
 *.log
+.env
